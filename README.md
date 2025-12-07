@@ -34,3 +34,79 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+**File: `README.md`**
+
+```markdown
+# DevMatch
+
+A developer-recruiter matching platform where developers can showcase their GitHub repositories and skills while recruiters can post jobs and discover talent.
+
+## Team
+
+| Name | Section |
+|------|---------|
+| Akash Shetty | [Your Section Number] |
+
+## Links
+
+- **Live Demo:** [https://devmatch.netlify.app](https://devmatch.netlify.app)
+- **Frontend Repo:** [https://github.com/akashshetty1997/devmatch-frontend](https://github.com/akashshetty1997/devmatch-frontend)
+- **Backend Repo:** [https://github.com/akashshetty1997/devmatch-backend](https://github.com/akashshetty1997/devmatch-backend)
+
+## Tech Stack
+
+### Frontend
+- Next.js 14
+- TypeScript
+- Tailwind CSS
+- Zustand (State Management)
+- Axios
+
+### Backend
+- Node.js
+- Express.js
+- MongoDB Atlas
+- JWT Authentication
+- GitHub REST API
+
+## Features
+
+- **Three User Roles:** Developer, Recruiter, and Admin
+- **GitHub Integration:** Search and import repositories via GitHub API
+- **Job System:** Recruiters post jobs, developers apply
+- **Social Features:** Feed with posts, likes, comments, and following
+- **Profile Management:** Role-specific profiles with skills and experience
+
+## Setup
+
+### Frontend
+```bash
+cd devmatch-frontend
+npm install
+npm run dev
+```
+
+### Backend
+```bash
+cd devmatch-backend
+npm install
+npm run dev
+```
+
+## Environment Variables
+
+### Frontend (.env.local)
+```
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+```
+
+### Backend (.env)
+```
+PORT=5000
+MONGODB_URI=your_mongodb_uri
+JWT_SECRET=your_jwt_secret
+GITHUB_TOKEN=your_github_token
+```
+```
