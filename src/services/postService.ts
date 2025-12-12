@@ -7,7 +7,7 @@ import api from "./api";
 
 export const postService = {
   // Get feed posts
-  getFeed: (params?: { page?: number; limit?: number }) => {
+  getFeed: (params?: { page?: number; limit?: number; sort?: "hot" | "new" | "top" }) => {
     return api.get("/posts", { params });
   },
 
@@ -44,22 +44,22 @@ export const postService = {
     return api.delete(`/posts/${postId}`);
   },
 
-  // Like post - Updated to use consistent endpoint
+  // Like post
   likePost: (postId: string) => {
     return api.post(`/posts/${postId}/likes`);
   },
 
-  // Unlike post - Fixed endpoint to match likes endpoint
+  // Unlike post
   unlikePost: (postId: string) => {
     return api.delete(`/posts/${postId}/likes`);
   },
 
-  // Get comments for post - Simplified without params for now
+  // Get comments for post
   getComments: (postId: string, params?: { page?: number; limit?: number }) => {
     return api.get(`/posts/${postId}/comments`, { params });
   },
 
-  // Add comment to post - Simplified method signature
+  // Add comment to post
   addComment: (postId: string, content: string) => {
     return api.post(`/posts/${postId}/comments`, { content });
   },

@@ -1,13 +1,7 @@
 /**
  * @file src/pages/feed.tsx
  * @description Reddit-style feed redesign (layout + cards + dark mode)
- *
- * Notes:
- * - Keeps your data logic mostly intact.
- * - Focus is UI/UX: Reddit-like two-column layout, vote rail, dense cards, dark mode safe.
- * - Uses tailwind `dark:` classes (requires `dark` class on <html> or via next-themes).
  */
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -98,36 +92,42 @@ const Feed = () => {
   const { success, error } = useToast();
   const router = useRouter();
 
-  // State
+  const currentUserId = (user as any)?._id ?? (user as any)?.id;
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
 
-  // Create post state
   const [newPostContent, setNewPostContent] = useState("");
   const [postType, setPostType] = useState<"TEXT" | "SHARE_REPO" | "SHARE_JOB">(
     "TEXT"
   );
   const [isPosting, setIsPosting] = useState(false);
 
-  // Repo selection state
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [repoSearchQuery, setRepoSearchQuery] = useState("");
   const [repoResults, setRepoResults] = useState<RepoResult[]>([]);
   const [searchingRepos, setSearchingRepos] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoResult | null>(null);
 
-  // Job selection state
   const [showJobModal, setShowJobModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
 
-  // Infinite scroll ref
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  // Fetch posts
+  const [sortUi, setSortUi] = useState<"hot" | "new" | "top">("hot");
+  const sortPills = useMemo(
+    () => [
+      { id: "hot" as const, label: "Hot", icon: Flame },
+      { id: "new" as const, label: "New", icon: Clock },
+      { id: "top" as const, label: "Top", icon: TrendingUp },
+    ],
+    []
+  );
+
   const fetchPosts = useCallback(
     async (pageNum: number, append = false) => {
       if (pageNum === 1) setLoading(true);
@@ -137,11 +137,13 @@ const Feed = () => {
         const response = await postService.getFeed({
           page: pageNum,
           limit: 10,
+          sort: sortUi, // backend can ignore if unsupported
         });
+
         const rawPosts = response.data?.data?.posts || [];
         const newPosts = rawPosts.map((post: any) => ({
           ...post,
-          isLiked: post.hasLiked || false,
+          isLiked: post.hasLiked || post.isLiked || false,
         }));
 
         setPosts((prev) => (append ? [...prev, ...newPosts] : newPosts));
@@ -154,25 +156,32 @@ const Feed = () => {
         setLoadingMore(false);
       }
     },
-    [error]
+    [error, sortUi]
   );
 
-  // Initial fetch
+  // initial + sort change refresh
   useEffect(() => {
-    fetchPosts(1);
+    setPage(1);
+    setHasMore(true);
+    fetchPosts(1, false);
   }, [fetchPosts]);
 
-  // Infinite scroll
+  // infinite scroll
   useEffect(() => {
     if (loading || loadingMore || !hasMore) return;
 
+    observerRef.current?.disconnect();
+
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          const nextPage = page + 1;
-          setPage(nextPage);
+        if (!entries[0]?.isIntersecting) return;
+        if (!hasMore || loadingMore) return;
+
+        setPage((prev) => {
+          const nextPage = prev + 1;
           fetchPosts(nextPage, true);
-        }
+          return nextPage;
+        });
       },
       { threshold: 0.15 }
     );
@@ -180,9 +189,8 @@ const Feed = () => {
     if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
 
     return () => observerRef.current?.disconnect();
-  }, [loading, loadingMore, hasMore, page, fetchPosts]);
+  }, [loading, loadingMore, hasMore, fetchPosts]);
 
-  // Search repos
   const handleSearchRepos = async () => {
     if (!repoSearchQuery.trim()) return;
     setSearchingRepos(true);
@@ -210,7 +218,6 @@ const Feed = () => {
     setPostType("TEXT");
   };
 
-  // Create new post
   const handleCreatePost = async () => {
     if (!newPostContent.trim()) return error("Please enter some content");
     if (postType === "SHARE_REPO" && !selectedRepo)
@@ -224,8 +231,7 @@ const Feed = () => {
         postData.githubId = selectedRepo.id;
         postData.repoFullName = selectedRepo.full_name;
       }
-      if (postType === "SHARE_JOB" && selectedJob)
-        postData.jobPostId = selectedJob._id;
+      if (postType === "SHARE_JOB" && selectedJob) postData.jobPostId = selectedJob._id;
 
       const response = await postService.createPost(postData);
       const newPost = response.data?.data || response.data;
@@ -245,41 +251,39 @@ const Feed = () => {
     }
   };
 
-  // Like
   const handleLike = async (postId: string) => {
     if (!isAuthenticated) {
       router.push(`/login?redirect=${encodeURIComponent("/feed")}`);
       return;
     }
 
+    const existing = posts.find((p) => p._id === postId);
+    if (!existing) return;
+
+    const oldLiked = !!existing.isLiked;
+    const oldLikes = existing.likesCount;
+
+    // optimistic update
+    setPosts((prev) =>
+      prev.map((p) =>
+        p._id === postId
+          ? {
+              ...p,
+              isLiked: !oldLiked,
+              likesCount: oldLiked ? oldLikes - 1 : oldLikes + 1,
+            }
+          : p
+      )
+    );
+
     try {
-      const post = posts.find((p) => p._id === postId);
-      if (!post) return;
-
-      setPosts((prev) =>
-        prev.map((p) =>
-          p._id === postId
-            ? {
-                ...p,
-                isLiked: !p.isLiked,
-                likesCount: p.isLiked ? p.likesCount - 1 : p.likesCount + 1,
-              }
-            : p
-        )
-      );
-
-      if (post.isLiked) await postService.unlikePost(postId);
+      if (oldLiked) await postService.unlikePost(postId);
       else await postService.likePost(postId);
     } catch (err) {
+      // revert to exact previous state (your old code was wrong here)
       setPosts((prev) =>
         prev.map((p) =>
-          p._id === postId
-            ? {
-                ...p,
-                isLiked: !p.isLiked,
-                likesCount: p.isLiked ? p.likesCount + 1 : p.likesCount - 1,
-              }
-            : p
+          p._id === postId ? { ...p, isLiked: oldLiked, likesCount: oldLikes } : p
         )
       );
       error("Failed to update like");
@@ -304,21 +308,10 @@ const Feed = () => {
     );
   };
 
-  // Simple Reddit-ish “sort” UI only (doesn’t change API call)
-  const [sortUi, setSortUi] = useState<"hot" | "new" | "top">("hot");
-  const sortPills = useMemo(
-    () => [
-      { id: "hot" as const, label: "Hot", icon: Flame },
-      { id: "new" as const, label: "New", icon: Clock },
-      { id: "top" as const, label: "Top", icon: TrendingUp },
-    ],
-    []
-  );
-
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-[#0b0f14] dark:text-white">
       <div className="mx-auto flex max-w-6xl gap-6 px-4 py-6">
-        {/* Left gutter (like Reddit) */}
+        {/* Left gutter */}
         <div className="hidden lg:block lg:w-56">
           <div className="sticky top-6 space-y-4">
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -380,8 +373,7 @@ const Feed = () => {
               </p>
             </div>
 
-            {/* Sort pills (UI only) */}
-            <div className="hidden sm:flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="hidden items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.03] sm:flex">
               {sortPills.map((p) => {
                 const Icon = p.icon;
                 const active = sortUi === p.id;
@@ -404,13 +396,12 @@ const Feed = () => {
             </div>
           </div>
 
-          {/* Create Post (Reddit composer style) */}
+          {/* Create Post */}
           {isAuthenticated && (
             <div className="mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex gap-3 p-4">
                 <Link href={`/profile/${user?.username}`} className="shrink-0">
                   {user?.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={user.avatar}
                       alt={user.username}
@@ -432,7 +423,6 @@ const Feed = () => {
                     className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
                   />
 
-                  {/* Selected Repo */}
                   {selectedRepo && (
                     <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                       <div className="flex items-start justify-between gap-3">
@@ -440,11 +430,9 @@ const Feed = () => {
                           <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                             <Github
                               size={16}
-                              className="text-gray-500 dark:text-white/60"
+                              className="flex-shrink-0 text-gray-500 dark:text-white/60"
                             />
-                            <span className="truncate">
-                              {selectedRepo.full_name}
-                            </span>
+                            <span className="truncate">{selectedRepo.full_name}</span>
                           </div>
                           {selectedRepo.description && (
                             <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-white/60">
@@ -464,10 +452,9 @@ const Feed = () => {
                             </span>
                           </div>
                         </div>
-
                         <button
                           onClick={handleClearRepo}
-                          className="rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                          className="flex-shrink-0 rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
                           title="Remove repo"
                         >
                           <X size={16} />
@@ -476,7 +463,6 @@ const Feed = () => {
                     </div>
                   )}
 
-                  {/* Selected Job */}
                   {selectedJob && (
                     <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                       <div className="flex items-start justify-between gap-3">
@@ -484,11 +470,9 @@ const Feed = () => {
                           <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                             <Briefcase
                               size={16}
-                              className="text-gray-500 dark:text-white/60"
+                              className="flex-shrink-0 text-gray-500 dark:text-white/60"
                             />
-                            <span className="truncate">
-                              {selectedJob.title}
-                            </span>
+                            <span className="truncate">{selectedJob.title}</span>
                           </div>
                           <p className="mt-1 text-xs text-gray-600 dark:text-white/60">
                             {selectedJob.companyName}
@@ -499,7 +483,7 @@ const Feed = () => {
                             setSelectedJob(null);
                             setPostType("TEXT");
                           }}
-                          className="rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                          className="flex-shrink-0 rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
                           title="Remove job"
                         >
                           <X size={16} />
@@ -508,7 +492,6 @@ const Feed = () => {
                     </div>
                   )}
 
-                  {/* Composer actions */}
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <button
@@ -543,11 +526,7 @@ const Feed = () => {
                       disabled={isPosting || !newPostContent.trim()}
                       className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isPosting ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <Send size={16} />
-                      )}
+                      {isPosting ? <LoadingSpinner size="sm" /> : <Send size={16} />}
                       Post
                     </button>
                   </div>
@@ -556,13 +535,9 @@ const Feed = () => {
             </div>
           )}
 
-          {/* Login prompt */}
           {!isAuthenticated && (
             <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-              <Link
-                href="/login?redirect=/feed"
-                className="font-semibold hover:underline"
-              >
+              <Link href="/login?redirect=/feed" className="font-semibold hover:underline">
                 Login
               </Link>{" "}
               or{" "}
@@ -573,21 +548,19 @@ const Feed = () => {
             </div>
           )}
 
-          {/* Loading */}
           {loading && (
             <div className="flex justify-center py-12">
               <LoadingSpinner size="lg" />
             </div>
           )}
 
-          {/* Posts */}
           {!loading && (
             <div className="space-y-3">
               {posts.map((post) => (
                 <PostCard
                   key={post._id}
                   post={post}
-                  currentUserId={user?.id}
+                  currentUserId={currentUserId}
                   onLike={handleLike}
                   onDelete={handleDeletePost}
                   onCommentAdded={handleCommentAdded}
@@ -604,19 +577,15 @@ const Feed = () => {
 
               {!hasMore && posts.length > 0 && (
                 <p className="py-6 text-center text-sm text-gray-500 dark:text-white/50">
-                  You’ve reached the end of the feed
+                  You&apos;ve reached the end of the feed
                 </p>
               )}
             </div>
           )}
 
-          {/* Empty */}
           {!loading && posts.length === 0 && (
             <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-              <MessageCircle
-                className="mx-auto mb-4 text-gray-300 dark:text-white/15"
-                size={56}
-              />
+              <MessageCircle className="mx-auto mb-4 text-gray-300 dark:text-white/15" size={56} />
               <h3 className="text-lg font-semibold">No posts yet</h3>
               <p className="mt-1 text-sm text-gray-500 dark:text-white/55">
                 Be the first to share something.
@@ -625,7 +594,7 @@ const Feed = () => {
           )}
         </div>
 
-        {/* Right column (Reddit sidebar-ish) */}
+        {/* Right column */}
         <div className="hidden xl:block xl:w-72">
           <div className="sticky top-6 space-y-4">
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -635,20 +604,12 @@ const Feed = () => {
               </p>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center dark:border-white/10 dark:bg-white/[0.04]">
-                  <div className="text-xs text-gray-500 dark:text-white/55">
-                    Posts
-                  </div>
-                  <div className="mt-1 text-lg font-semibold">
-                    {posts.length}
-                  </div>
+                  <div className="text-xs text-gray-500 dark:text-white/55">Posts</div>
+                  <div className="mt-1 text-lg font-semibold">{posts.length}</div>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center dark:border-white/10 dark:bg-white/[0.04]">
-                  <div className="text-xs text-gray-500 dark:text-white/55">
-                    Sort
-                  </div>
-                  <div className="mt-1 text-lg font-semibold capitalize">
-                    {sortUi}
-                  </div>
+                  <div className="text-xs text-gray-500 dark:text-white/55">Sort</div>
+                  <div className="mt-1 text-lg font-semibold capitalize">{sortUi}</div>
                 </div>
               </div>
             </div>
@@ -660,21 +621,15 @@ const Feed = () => {
                   href="/search"
                   className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
                 >
-                  Explore repos{" "}
-                  <ExternalLink
-                    size={16}
-                    className="text-gray-400 dark:text-white/40"
-                  />
+                  Explore repos
+                  <ExternalLink size={16} className="text-gray-400 dark:text-white/40" />
                 </Link>
                 <Link
                   href="/jobs"
                   className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
                 >
-                  Browse jobs{" "}
-                  <ExternalLink
-                    size={16}
-                    className="text-gray-400 dark:text-white/40"
-                  />
+                  Browse jobs
+                  <ExternalLink size={16} className="text-gray-400 dark:text-white/40" />
                 </Link>
               </div>
             </div>
@@ -682,7 +637,7 @@ const Feed = () => {
         </div>
       </div>
 
-      {/* Repo Modal (styled) */}
+      {/* Repo Modal */}
       {showRepoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0f1620]">
@@ -739,9 +694,7 @@ const Feed = () => {
 
                 {!searchingRepos && repoResults.length === 0 && (
                   <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-white/10 dark:text-white/55">
-                    {repoSearchQuery
-                      ? "No repositories found."
-                      : "Search to see results."}
+                    {repoSearchQuery ? "No repositories found." : "Search to see results."}
                   </div>
                 )}
 
@@ -752,10 +705,7 @@ const Feed = () => {
                     className="w-full rounded-xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.02] dark:hover:bg-white/[0.06]"
                   >
                     <div className="flex items-center gap-2 text-sm font-semibold">
-                      <Github
-                        size={16}
-                        className="text-gray-500 dark:text-white/60"
-                      />
+                      <Github size={16} className="flex-shrink-0 text-gray-500 dark:text-white/60" />
                       <span className="truncate">{repo.full_name}</span>
                     </div>
                     {repo.description && (
@@ -781,7 +731,7 @@ const Feed = () => {
         </div>
       )}
 
-      {/* Job modal placeholder (kept) */}
+      {/* Job Modal */}
       {showJobModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0f1620]">
@@ -795,7 +745,7 @@ const Feed = () => {
               </button>
             </div>
             <div className="p-6 text-sm text-gray-600 dark:text-white/60">
-              Hook this modal to your jobs list. For now, it’s a UI shell.
+              Hook this modal to your jobs list. For now, it&apos;s a UI shell.
             </div>
           </div>
         </div>
@@ -814,13 +764,7 @@ interface PostCardProps {
   onCommentAdded: (postId: string) => void;
 }
 
-const PostCard = ({
-  post,
-  currentUserId,
-  onLike,
-  onDelete,
-  onCommentAdded,
-}: PostCardProps) => {
+const PostCard = ({ post, currentUserId, onLike, onDelete, onCommentAdded }: PostCardProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -833,12 +777,11 @@ const PostCard = ({
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isAuthor = currentUserId === post.author._id;
+  const isAuthor = !!currentUserId && currentUserId === post.author._id;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node))
-        setShowMenu(false);
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setShowMenu(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -846,6 +789,7 @@ const PostCard = ({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -867,10 +811,7 @@ const PostCard = ({
     try {
       const response = await postService.getComments(post._id);
       const commentsData =
-        response.data?.data?.comments ||
-        response.data?.data ||
-        response.data?.comments ||
-        [];
+        response.data?.data?.comments || response.data?.data || response.data?.comments || [];
       setComments(commentsData);
     } catch (err) {
       error("Failed to load comments");
@@ -908,7 +849,6 @@ const PostCard = ({
     onLike(post._id);
   };
 
-  // Reddit-ish vote rail: we map your like to a single “upvote” action visually.
   const score = post.likesCount;
 
   return (
@@ -929,9 +869,7 @@ const PostCard = ({
             <Heart size={18} fill={post.isLiked ? "currentColor" : "none"} />
           </button>
 
-          <div className="text-xs font-bold text-gray-700 dark:text-white/80">
-            {score}
-          </div>
+          <div className="text-xs font-bold text-gray-700 dark:text-white/80">{score}</div>
 
           <div className="h-6 w-px bg-gray-200 dark:bg-white/10" />
 
@@ -949,12 +887,8 @@ const PostCard = ({
           {/* Meta header */}
           <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3">
             <div className="flex min-w-0 items-center gap-2">
-              <Link
-                href={`/profile/${post.author.username}`}
-                className="shrink-0"
-              >
+              <Link href={`/profile/${post.author.username}`} className="shrink-0">
                 {post.author.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={post.author.avatar}
                     alt={post.author.username}
@@ -1049,21 +983,31 @@ const PostCard = ({
             </p>
           </div>
 
-          {/* Attachments */}
+          {/* Repo Attachment (FIXED: broken anchor + encoded internal route) */}
           {post.type === "SHARE_REPO" && post.repo && (
             <div className="mx-4 mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <a
-                    href={post.repo.htmlUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300"
-                  >
-                    <Github size={16} />
-                    <span className="truncate">{post.repo.fullName}</span>
-                    <ExternalLink size={14} />
-                  </a>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/details/${encodeURIComponent(post.repo.fullName)}`}
+                      className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300"
+                    >
+                      <Github size={16} className="flex-shrink-0" />
+                      <span className="truncate">{post.repo.fullName}</span>
+                    </Link>
+
+                    <a
+                      href={`https://github.com/${post.repo.fullName}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                      title="Open on GitHub"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
 
                   {post.repo.description && (
                     <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-white/60">
@@ -1086,18 +1030,17 @@ const PostCard = ({
             </div>
           )}
 
+          {/* Job Attachment */}
           {post.type === "SHARE_JOB" && post.jobPost && (
             <div className="mx-4 mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
               <Link
                 href={`/jobs/${post.jobPost._id}`}
                 className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300"
               >
-                <Briefcase size={16} />
+                <Briefcase size={16} className="flex-shrink-0" />
                 <span className="truncate">{post.jobPost.title}</span>
               </Link>
-              <p className="mt-1 text-xs text-gray-600 dark:text-white/60">
-                {post.jobPost.companyName}
-              </p>
+              <p className="mt-1 text-xs text-gray-600 dark:text-white/60">{post.jobPost.companyName}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-white/55">
                 <span>{post.jobPost.workType}</span>
                 {post.jobPost.location?.city && (
@@ -1122,10 +1065,7 @@ const PostCard = ({
                     : "hover:bg-gray-100 dark:hover:bg-white/[0.06]",
                 ].join(" ")}
               >
-                <Heart
-                  size={16}
-                  fill={post.isLiked ? "currentColor" : "none"}
-                />
+                <Heart size={16} fill={post.isLiked ? "currentColor" : "none"} />
                 Like
               </button>
 
@@ -1151,8 +1091,7 @@ const PostCard = ({
             <div className="flex items-center gap-3">
               {post.commentsCount > 0 && (
                 <button onClick={loadComments} className="hover:underline">
-                  {post.commentsCount} comment
-                  {post.commentsCount !== 1 ? "s" : ""}
+                  {post.commentsCount} comment{post.commentsCount !== 1 ? "s" : ""}
                 </button>
               )}
             </div>
@@ -1171,12 +1110,8 @@ const PostCard = ({
                 <div className="space-y-3">
                   {comments.map((comment) => (
                     <div key={comment._id} className="flex gap-2">
-                      <Link
-                        href={`/profile/${comment.author.username}`}
-                        className="shrink-0"
-                      >
+                      <Link href={`/profile/${comment.author.username}`} className="shrink-0">
                         {comment.author.avatar ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={comment.author.avatar}
                             alt={comment.author.username}
@@ -1201,9 +1136,7 @@ const PostCard = ({
                             {formatDate(comment.createdAt)}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-gray-700 dark:text-white/75">
-                          {comment.content}
-                        </p>
+                        <p className="mt-1 text-sm text-gray-700 dark:text-white/75">{comment.content}</p>
                       </div>
                     </div>
                   ))}
@@ -1216,7 +1149,6 @@ const PostCard = ({
                 </div>
               )}
 
-              {/* Add comment */}
               <div className="mt-3 flex gap-2">
                 {isAuthenticated ? (
                   <>
@@ -1239,20 +1171,12 @@ const PostCard = ({
                       className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
                       title="Send"
                     >
-                      {postingComment ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <Send size={16} />
-                      )}
+                      {postingComment ? <LoadingSpinner size="sm" /> : <Send size={16} />}
                     </button>
                   </>
                 ) : (
                   <button
-                    onClick={() =>
-                      router.push(
-                        `/login?redirect=${encodeURIComponent("/feed")}`
-                      )
-                    }
+                    onClick={() => router.push(`/login?redirect=${encodeURIComponent("/feed")}`)}
                     className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
                   >
                     Log in to comment

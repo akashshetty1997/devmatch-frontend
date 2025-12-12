@@ -165,24 +165,27 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
           lastSyncedAt: repoData.lastSyncedAt || new Date().toISOString(),
         };
 
-        const isValidMongoId =
-          mappedData._id &&
-          mappedData._id.length === 24 &&
-          /^[a-f0-9]+$/i.test(mappedData._id);
-
-        // Fetch README if not included
-        if (!mappedData.readme && mappedData._id && isValidMongoId) {
+        // Fetch README if not included - USE fullName, not _id
+        if (!mappedData.readme && mappedData.fullName) {
           try {
-            const readmeResponse = await githubAPI.getReadme(mappedData._id);
+            const readmeResponse = await githubAPI.getReadme(
+              mappedData.fullName
+            );
             const readmeData = readmeResponse.data?.data || readmeResponse.data;
             mappedData.readme =
               readmeData?.readme || readmeData?.content || null;
           } catch {
-            // ignore
+            // README might not exist for some repos, ignore error
           }
         }
 
         setRepo(mappedData);
+
+        // Check if _id is valid MongoDB ObjectId for reviews/pinned
+        const isValidMongoId =
+          mappedData._id &&
+          mappedData._id.length === 24 &&
+          /^[a-f0-9]+$/i.test(mappedData._id);
 
         // Fetch reviews
         if (isValidMongoId) {
@@ -359,7 +362,6 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
   };
 
   if (loading) {
-    // Keep your existing PageLoading behavior, but put it on the dark canvas
     return (
       <div className="relative min-h-screen bg-[#070A12] text-white">
         <GradientBg />
@@ -434,7 +436,6 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
     >
       <GradientBg />
 
-      {/* Header (kept as-is; if this component is still light-themed, you must restyle RepoHeader too) */}
       <div className="relative">
         <RepoHeader
           repo={repo}

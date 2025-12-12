@@ -134,7 +134,8 @@ function GlassCard({
   return (
     <div
       className={[
-        "rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset]",
+        // overflow-hidden prevents inner content from spilling on tiny widths
+        "overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-[0_1px_0_0_rgba(255,255,255,0.05)_inset]",
         className,
       ].join(" ")}
     >
@@ -145,8 +146,9 @@ function GlassCard({
 
 function Pill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-md">
-      {children}
+    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-md">
+      {/* max-w-full ensures pill doesn't push layout */}
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   );
 }
@@ -230,8 +232,7 @@ export default function HomePage() {
   const getRepoFullName = (repo: TrendingRepo): string => {
     if (repo.fullName) return repo.fullName;
     if (repo.full_name) return repo.full_name;
-    const owner =
-      typeof repo.owner === "string" ? repo.owner : repo.owner?.login;
+    const owner = typeof repo.owner === "string" ? repo.owner : repo.owner?.login;
     if (owner && repo.name) return `${owner}/${repo.name}`;
     return repo.name || "";
   };
@@ -260,22 +261,14 @@ export default function HomePage() {
         title: "Explore repos that matter",
         desc: "Search GitHub. Save, review, and discuss repos with signals that help you choose fast.",
         icon: Code,
-        bullets: [
-          "GitHub search + trending",
-          "Favorites + bookmarks",
-          "AI summaries (optional)",
-        ],
+        bullets: ["GitHub search + trending", "Favorites + bookmarks", "AI summaries (optional)"],
         accent: "from-sky-500/20 to-cyan-500/10",
       },
       {
         title: "Jobs without the noise",
         desc: "Curated listings and a clean flow. Recruiters post. Developers apply and track.",
         icon: Briefcase,
-        bullets: [
-          "Featured listings",
-          "Simple apply flow",
-          "Application tracking",
-        ],
+        bullets: ["Featured listings", "Simple apply flow", "Application tracking"],
         accent: "from-fuchsia-500/20 to-purple-500/10",
       },
       {
@@ -293,20 +286,17 @@ export default function HomePage() {
     () => [
       {
         name: "Recruiter",
-        quote:
-          "The UI is clean and the repo signals save time. It feels focused, not bloated.",
+        quote: "The UI is clean and the repo signals save time. It feels focused, not bloated.",
         tag: "Hiring",
       },
       {
         name: "Developer",
-        quote:
-          "Trending + search + details in one place. No context switching. That’s the win.",
+        quote: "Trending + search + details in one place. No context switching. That's the win.",
         tag: "Discovery",
       },
       {
         name: "Student",
-        quote:
-          "The layout makes it obvious what to do next. The motion is subtle, not distracting.",
+        quote: "The layout makes it obvious what to do next. The motion is subtle, not distracting.",
         tag: "Onboarding",
       },
     ],
@@ -332,30 +322,35 @@ export default function HomePage() {
       {/* Top banner */}
       <div className="relative z-10 border-b border-white/10 bg-black/20 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <div className="text-sm text-white/70">
-            <span className="font-medium text-white/90">Team:</span> Akash
-            Shridhar Shetty &amp; Skandhan Madhusudhana
-            <span className="mx-2 text-white/30">|</span>
-            Section 05
+          <div className="min-w-0 text-sm text-white/70">
+            {/* min-w-0 + truncate prevents overflow on small widths */}
+            <div className="truncate">
+              <span className="font-medium text-white/90">Team:</span> Akash Shridhar Shetty &amp;
+              Skandhan Madhusudhana
+              <span className="mx-2 text-white/30">|</span>
+              Section 05
+            </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex min-w-0 flex-wrap gap-3">
             <a
               href="https://github.com/akashshetty1997/devmatch-frontend"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/85 hover:bg-white/10"
+              className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/85 hover:bg-white/10"
             >
-              <Github size={16} /> Frontend{" "}
-              <ExternalLink size={12} className="text-white/50" />
+              <Github size={16} className="flex-shrink-0" />
+              <span className="min-w-0 truncate">Frontend</span>
+              <ExternalLink size={12} className="flex-shrink-0 text-white/50" />
             </a>
             <a
               href="https://github.com/akashshetty1997/devmatch-backend"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/85 hover:bg-white/10"
+              className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/85 hover:bg-white/10"
             >
-              <Github size={16} /> Backend{" "}
-              <ExternalLink size={12} className="text-white/50" />
+              <Github size={16} className="flex-shrink-0" />
+              <span className="min-w-0 truncate">Backend</span>
+              <ExternalLink size={12} className="flex-shrink-0 text-white/50" />
             </a>
           </div>
         </div>
@@ -365,11 +360,7 @@ export default function HomePage() {
       <section ref={heroRef} className="relative z-10">
         <div className="mx-auto max-w-7xl px-4 pb-10 pt-12 md:pb-16 md:pt-16">
           <motion.div
-            style={
-              reduceMotion
-                ? undefined
-                : { opacity: heroOpacity, scale: heroScale, y: heroY }
-            }
+            style={reduceMotion ? undefined : { opacity: heroOpacity, scale: heroScale, y: heroY }}
             initial="hidden"
             animate="visible"
             variants={stagger}
@@ -383,22 +374,19 @@ export default function HomePage() {
 
               <div className="grid items-center gap-10 md:grid-cols-12">
                 {/* Left */}
-                <div className="md:col-span-7">
-                  <motion.div
-                    variants={fadeUp}
-                    className="mb-5 flex flex-wrap gap-2"
-                  >
+                <div className="min-w-0 md:col-span-7">
+                  <motion.div variants={fadeUp} className="mb-5 flex min-w-0 flex-wrap gap-2">
                     <Pill>
-                      <Zap size={16} className="text-yellow-300" />
-                      Developer Platform
+                      <Zap size={16} className="text-yellow-300 flex-shrink-0" />
+                      <span className="truncate">Developer Platform</span>
                     </Pill>
                     <Pill>
-                      <Sparkles size={16} className="text-sky-300" />
-                      Connect With Recruiter
+                      <Sparkles size={16} className="text-sky-300 flex-shrink-0" />
+                      <span className="truncate">Connect With Recruiter</span>
                     </Pill>
                     <Pill>
-                      <TrendingUp size={16} className="text-emerald-300" />
-                      Live content
+                      <TrendingUp size={16} className="text-emerald-300 flex-shrink-0" />
+                      <span className="truncate">Live content</span>
                     </Pill>
                   </motion.div>
 
@@ -409,46 +397,38 @@ export default function HomePage() {
                         className="text-4xl font-semibold leading-tight md:text-6xl"
                       >
                         Hey,{" "}
-                        <span className="bg-gradient-to-r from-white via-sky-200 to-fuchsia-200 bg-clip-text text-transparent">
+                        <span className="bg-gradient-to-r from-white via-sky-200 to-fuchsia-200 bg-clip-text text-transparent break-words">
                           {user.username}
                         </span>
                         .
                       </motion.h1>
-                      <motion.p
-                        variants={fadeUp}
-                        className="mt-4 text-lg text-white/70 md:text-xl"
-                      >
+                      <motion.p variants={fadeUp} className="mt-4 text-lg text-white/70 md:text-xl">
                         {user.role === "DEVELOPER"
                           ? "Discover repos and opportunities with less noise and better signals."
                           : "Find candidates faster with profiles that show real work."}
                       </motion.p>
 
-                      <motion.div
-                        variants={fadeUp}
-                        className="mt-8 flex flex-col gap-3 sm:flex-row"
-                      >
+                      <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row">
                         <Link
                           href="/search"
                           className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
                         >
-                          <Search size={18} />
-                          Search Repos
+                          <Search size={18} className="flex-shrink-0" />
+                          <span className="truncate">Search Repos</span>
                           <ArrowRight
                             size={18}
-                            className="transition-transform group-hover:translate-x-0.5"
+                            className="flex-shrink-0 transition-transform group-hover:translate-x-0.5"
                           />
                         </Link>
 
                         <Link
-                          href={
-                            user.role === "DEVELOPER" ? "/jobs" : "/my-jobs"
-                          }
+                          href={user.role === "DEVELOPER" ? "/jobs" : "/my-jobs"}
                           className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 hover:bg-white/10"
                         >
-                          <Briefcase size={18} />
-                          {user.role === "DEVELOPER"
-                            ? "Browse Jobs"
-                            : "Manage Jobs"}
+                          <Briefcase size={18} className="flex-shrink-0" />
+                          <span className="truncate">
+                            {user.role === "DEVELOPER" ? "Browse Jobs" : "Manage Jobs"}
+                          </span>
                         </Link>
                       </motion.div>
                     </>
@@ -469,26 +449,20 @@ export default function HomePage() {
                         .
                       </motion.h1>
 
-                      <motion.p
-                        variants={fadeUp}
-                        className="mt-4 text-lg text-white/70 md:text-xl"
-                      >
-                        Discover repositories, connect with recruiters, and land
-                        your next role — with a UI designed to keep you moving.
+                      <motion.p variants={fadeUp} className="mt-4 text-lg text-white/70 md:text-xl">
+                        Discover repositories, connect with recruiters, and land your next role — with a UI
+                        designed to keep you moving.
                       </motion.p>
 
-                      <motion.div
-                        variants={fadeUp}
-                        className="mt-8 flex flex-col gap-3 sm:flex-row"
-                      >
+                      <motion.div variants={fadeUp} className="mt-8 flex flex-col gap-3 sm:flex-row">
                         <Link
                           href="/register"
                           className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
                         >
-                          Get Started Free
+                          <span className="truncate">Get Started Free</span>
                           <ArrowRight
                             size={18}
-                            className="transition-transform group-hover:translate-x-0.5"
+                            className="flex-shrink-0 transition-transform group-hover:translate-x-0.5"
                           />
                         </Link>
 
@@ -496,14 +470,11 @@ export default function HomePage() {
                           href="/login"
                           className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 hover:bg-white/10"
                         >
-                          Sign In
+                          <span className="truncate">Sign In</span>
                         </Link>
                       </motion.div>
 
-                      <motion.div
-                        variants={fadeUp}
-                        className="mt-10 grid grid-cols-3 gap-6"
-                      >
+                      <motion.div variants={fadeUp} className="mt-10 grid grid-cols-3 gap-6">
                         {[
                           { label: "Active Developers", value: "10K+" },
                           { label: "Jobs Posted", value: "500+" },
@@ -511,14 +482,10 @@ export default function HomePage() {
                         ].map((s) => (
                           <div
                             key={s.label}
-                            className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                            className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-4"
                           >
-                            <div className="text-2xl font-semibold">
-                              {s.value}
-                            </div>
-                            <div className="mt-1 text-xs text-white/60">
-                              {s.label}
-                            </div>
+                            <div className="text-2xl font-semibold truncate">{s.value}</div>
+                            <div className="mt-1 text-xs text-white/60 truncate">{s.label}</div>
                           </div>
                         ))}
                       </motion.div>
@@ -527,17 +494,18 @@ export default function HomePage() {
                 </div>
 
                 {/* Right: "Bento preview" */}
-                <div className="md:col-span-5">
-                  <motion.div variants={fade} className="grid gap-4">
+                <div className="min-w-0 md:col-span-5">
+                  <motion.div variants={fade} className="grid min-w-0 gap-4">
                     <GlassCard className="p-5">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold text-white/90">
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <div className="min-w-0 text-sm font-semibold text-white/90 truncate">
                           Trending Repos
                         </div>
-                        <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs text-emerald-300">
+                        <span className="flex-shrink-0 rounded-full bg-emerald-500/20 px-3 py-1 text-xs text-emerald-300">
                           Live
                         </span>
                       </div>
+
                       <div className="mt-4 space-y-3">
                         {[
                           { name: "vercel/next.js", stars: "128k", lang: "TypeScript" },
@@ -546,18 +514,20 @@ export default function HomePage() {
                         ].map((repo) => (
                           <div
                             key={repo.name}
-                            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"
+                            className="flex min-w-0 items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"
                           >
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500/40 to-fuchsia-500/20">
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500/40 to-fuchsia-500/20">
                               <Github size={16} className="text-white/80" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-white/90 truncate">
+
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-medium text-white/90">
                                 {repo.name}
                               </div>
-                              <div className="text-xs text-white/50">{repo.lang}</div>
+                              <div className="truncate text-xs text-white/50">{repo.lang}</div>
                             </div>
-                            <div className="flex items-center gap-1 text-xs text-yellow-300">
+
+                            <div className="flex flex-shrink-0 items-center gap-1 text-xs text-yellow-300">
                               <Star size={12} />
                               {repo.stars}
                             </div>
@@ -566,36 +536,30 @@ export default function HomePage() {
                       </div>
                     </GlassCard>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid min-w-0 grid-cols-2 gap-4">
                       <GlassCard className="p-5">
-                        <div className="text-sm font-semibold text-white/90">
-                          Quick Search
-                        </div>
-                        <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60 flex items-center gap-2">
-                          <Search size={12} className="text-white/40" />
-                          react hooks...
+                        <div className="truncate text-sm font-semibold text-white/90">Quick Search</div>
+                        <div className="mt-3 flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                          <Search size={12} className="flex-shrink-0 text-white/40" />
+                          <span className="min-w-0 truncate">react hooks...</span>
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
-                          <Zap size={12} className="text-sky-400" />
-                          <span>Instant results</span>
+                          <Zap size={12} className="flex-shrink-0 text-sky-400" />
+                          <span className="truncate">Instant results</span>
                         </div>
                       </GlassCard>
 
                       <GlassCard className="p-5">
-                        <div className="text-sm font-semibold text-white/90">
-                          Active Jobs
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500/30 to-sky-500/20">
+                        <div className="truncate text-sm font-semibold text-white/90">Active Jobs</div>
+                        <div className="mt-3 flex min-w-0 items-center gap-2">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500/30 to-sky-500/20">
                             <Briefcase size={14} className="text-white/70" />
                           </div>
-                          <div className="text-xs text-white/70">
-                            12 new today
-                          </div>
+                          <div className="min-w-0 truncate text-xs text-white/70">12 new today</div>
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-xs text-white/50">
-                          <TrendingUp size={12} className="text-emerald-400" />
-                          <span>Growing daily</span>
+                          <TrendingUp size={12} className="flex-shrink-0 text-emerald-400" />
+                          <span className="truncate">Growing daily</span>
                         </div>
                       </GlassCard>
                     </div>
@@ -627,11 +591,7 @@ export default function HomePage() {
           <motion.div
             className="flex gap-10 whitespace-nowrap text-sm text-white/70"
             animate={reduceMotion ? undefined : { x: ["0%", "-50%"] }}
-            transition={
-              reduceMotion
-                ? undefined
-                : { duration: 18, ease: "linear", repeat: Infinity }
-            }
+            transition={reduceMotion ? undefined : { duration: 18, ease: "linear", repeat: Infinity }}
           >
             {[
               "Trending repos",
@@ -669,25 +629,23 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 py-16">
           <AnimatedSection>
             <div className="flex items-end justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-2 text-sm text-sky-300">
-                  <Clock size={18} />
-                  Fresh opportunities
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2 text-sm text-sky-300">
+                  <Clock size={18} className="flex-shrink-0" />
+                  <span className="truncate">Fresh opportunities</span>
                 </div>
-                <h2 className="mt-2 text-3xl font-semibold md:text-4xl">
-                  Recent job postings
-                </h2>
+                <h2 className="mt-2 text-3xl font-semibold md:text-4xl">Recent job postings</h2>
                 <p className="mt-2 max-w-2xl text-white/65">
-                  Clean cards, clear hierarchy, minimal noise. If there are no
-                  jobs, the empty state still looks intentional.
+                  Clean cards, clear hierarchy, minimal noise. If there are no jobs, the empty state
+                  still looks intentional.
                 </p>
               </div>
 
               <Link
                 href="/jobs"
-                className="hidden items-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10 md:inline-flex"
+                className="hidden flex-shrink-0 items-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10 md:inline-flex"
               >
-                View all <ArrowRight size={18} />
+                <span className="truncate">View all</span> <ArrowRight size={18} className="flex-shrink-0" />
               </Link>
             </div>
           </AnimatedSection>
@@ -714,48 +672,47 @@ export default function HomePage() {
                   <motion.div key={job._id} variants={cardIn}>
                     <Link
                       href={`/jobs/${job._id}`}
-                      className="group block rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-white/20 hover:bg-white/10"
+                      className="group block overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-white/20 hover:bg-white/10"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/60 to-fuchsia-500/30 text-lg font-semibold">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/60 to-fuchsia-500/30 text-lg font-semibold">
                             {(job.companyName?.charAt(0) || "C").toUpperCase()}
                           </div>
-                          <div>
-                            <div className="text-sm text-white/60">
-                              {job.companyName}
-                            </div>
-                            <div className="mt-1 text-lg font-semibold text-white/95 group-hover:text-white">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm text-white/60">{job.companyName}</div>
+                            <div className="mt-1 truncate text-lg font-semibold text-white/95 group-hover:text-white">
                               {job.title}
                             </div>
                           </div>
                         </div>
-                        <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/65">
+
+                        <span className="flex-shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs text-white/65">
                           {formatTimeAgo(job.createdAt)}
                         </span>
                       </div>
 
                       <div className="mt-5 flex flex-wrap gap-2">
                         {job.location?.city && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
-                            <MapPin size={12} />
-                            {job.location.city}
+                          <span className="inline-flex max-w-[180px] items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
+                            <MapPin size={12} className="flex-shrink-0" />
+                            <span className="truncate">{job.location.city}</span>
                           </span>
                         )}
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
-                          <Briefcase size={12} />
-                          {job.workType}
+                        <span className="inline-flex max-w-[180px] items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
+                          <Briefcase size={12} className="flex-shrink-0" />
+                          <span className="truncate">{job.workType}</span>
                         </span>
                       </div>
 
-                      <div className="mt-5 flex items-center justify-between text-sm text-white/60">
-                        <span className="inline-flex items-center gap-2">
-                          <CheckCircle size={16} className="text-emerald-300" />
-                          Quick apply flow
+                      <div className="mt-5 flex min-w-0 items-center justify-between text-sm text-white/60">
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <CheckCircle size={16} className="flex-shrink-0 text-emerald-300" />
+                          <span className="truncate">Quick apply flow</span>
                         </span>
                         <ArrowRight
                           size={18}
-                          className="opacity-0 transition-opacity group-hover:opacity-100"
+                          className="flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                         />
                       </div>
                     </Link>
@@ -766,9 +723,7 @@ export default function HomePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
                 <Briefcase size={46} className="mx-auto text-white/25" />
                 <div className="mt-4 text-white/80">No jobs posted yet.</div>
-                <div className="mt-1 text-sm text-white/55">
-                  This space will populate automatically.
-                </div>
+                <div className="mt-1 text-sm text-white/55">This space will populate automatically.</div>
               </div>
             )}
 
@@ -776,7 +731,7 @@ export default function HomePage() {
               href="/jobs"
               className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10 md:hidden"
             >
-              View all jobs <ArrowRight size={18} />
+              <span className="truncate">View all jobs</span> <ArrowRight size={18} className="flex-shrink-0" />
             </Link>
           </div>
         </div>
@@ -787,25 +742,23 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-4 pb-16">
           <AnimatedSection>
             <div className="flex items-end justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-2 text-sm text-fuchsia-300">
-                  <TrendingUp size={18} />
-                  Explore
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2 text-sm text-fuchsia-300">
+                  <TrendingUp size={18} className="flex-shrink-0" />
+                  <span className="truncate">Explore</span>
                 </div>
-                <h2 className="mt-2 text-3xl font-semibold md:text-4xl">
-                  Trending repositories
-                </h2>
+                <h2 className="mt-2 text-3xl font-semibold md:text-4xl">Trending repositories</h2>
                 <p className="mt-2 max-w-2xl text-white/65">
-                  High contrast, soft gradients, and “quiet” motion. Cards lift
-                  on hover and the section feels premium.
+                  High contrast, soft gradients, and "quiet" motion. Cards lift on hover and the section
+                  feels premium.
                 </p>
               </div>
 
               <Link
                 href="/search"
-                className="hidden items-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10 md:inline-flex"
+                className="hidden flex-shrink-0 items-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10 md:inline-flex"
               >
-                Search repos <ArrowRight size={18} />
+                <span className="truncate">Search repos</span> <ArrowRight size={18} className="flex-shrink-0" />
               </Link>
             </div>
           </AnimatedSection>
@@ -832,49 +785,47 @@ export default function HomePage() {
                   const fullName = getRepoFullName(repo);
                   const stars = getRepoStars(repo);
                   return (
-                    <motion.div
-                      key={repo.githubId ?? repo.id ?? idx}
-                      variants={cardIn}
-                    >
+                    <motion.div key={repo.githubId ?? repo.id ?? idx} variants={cardIn}>
                       <Link
-                        href={`/details/${fullName}`}
-                        className="group block rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-white/20 hover:bg-white/10"
+                        // IMPORTANT: encodeURIComponent prevents URL break on "owner/repo"
+                        href={`/details/${encodeURIComponent(fullName)}`}
+                        className="group block overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md transition-all hover:-translate-y-1 hover:border-white/20 hover:bg-white/10"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500/45 to-sky-500/20">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500/45 to-sky-500/20">
                               <Github size={18} />
                             </div>
-                            <div className="min-w-0">
+
+                            <div className="min-w-0 flex-1">
                               <div className="truncate text-lg font-semibold text-white/95 group-hover:text-white">
                                 {fullName}
                               </div>
-                              <div className="mt-1 text-sm text-white/60 line-clamp-2">
+                              <div className="mt-1 line-clamp-2 text-sm text-white/60 break-words">
                                 {repo.description || "No description available"}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
+
+                          <div className="flex flex-shrink-0 items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
                             <Star size={14} className="text-yellow-300" />
                             {stars.toLocaleString()}
                           </div>
                         </div>
 
-                        <div className="mt-5 flex items-center justify-between">
+                        <div className="mt-5 flex min-w-0 items-center justify-between">
                           {repo.language || repo.primaryLanguage ? (
-                            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
-                              <span className="h-2 w-2 rounded-full bg-fuchsia-300" />
-                              {repo.language || repo.primaryLanguage}
+                            <span className="inline-flex max-w-[180px] items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
+                              <span className="h-2 w-2 flex-shrink-0 rounded-full bg-fuchsia-300" />
+                              <span className="truncate">{repo.language || repo.primaryLanguage}</span>
                             </span>
                           ) : (
-                            <span className="text-xs text-white/50">
-                              Language unknown
-                            </span>
+                            <span className="truncate text-xs text-white/50">Language unknown</span>
                           )}
 
                           <ArrowRight
                             size={18}
-                            className="opacity-0 transition-opacity group-hover:opacity-100"
+                            className="flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                           />
                         </div>
                       </Link>
@@ -886,9 +837,7 @@ export default function HomePage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
                 <Code size={46} className="mx-auto text-white/25" />
                 <div className="mt-4 text-white/80">No trending repos yet.</div>
-                <div className="mt-1 text-sm text-white/55">
-                  Search to discover repositories.
-                </div>
+                <div className="mt-1 text-sm text-white/55">Search to discover repositories.</div>
               </div>
             )}
 
@@ -896,7 +845,7 @@ export default function HomePage() {
               href="/search"
               className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10 md:hidden"
             >
-              Search repos <ArrowRight size={18} />
+              <span className="truncate">Search repos</span> <ArrowRight size={18} className="flex-shrink-0" />
             </Link>
           </div>
         </div>
@@ -906,16 +855,14 @@ export default function HomePage() {
       <section className="relative z-10 border-y border-white/10 bg-black/20 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 py-16">
           <AnimatedSection className="text-center">
-            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80">
-              <Sparkles size={16} className="text-sky-300" />
-              Why DevMatch?
+            <div className="mx-auto inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80">
+              <Sparkles size={16} className="flex-shrink-0 text-sky-300" />
+              <span className="truncate">Why DevMatch?</span>
             </div>
-            <h2 className="mt-4 text-3xl font-semibold md:text-5xl">
-              Designed to feel premium
-            </h2>
+            <h2 className="mt-4 text-3xl font-semibold md:text-5xl">Designed to feel premium</h2>
             <p className="mx-auto mt-3 max-w-2xl text-white/65">
-              Bento layout, clear type hierarchy, subtle gradients, and motion
-              that supports scanning — not distraction.
+              Bento layout, clear type hierarchy, subtle gradients, and motion that supports scanning —
+              not distraction.
             </p>
           </AnimatedSection>
 
@@ -929,34 +876,22 @@ export default function HomePage() {
             {features.map((f) => {
               const Icon = f.icon;
               return (
-                <motion.div
-                  key={f.title}
-                  variants={cardIn}
-                  className="md:col-span-4"
-                >
-                  <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-md">
-                    <div
-                      className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${f.accent}`}
-                    />
-                    <div className="relative">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
+                <motion.div key={f.title} variants={cardIn} className="md:col-span-4">
+                  <div className="relative h-full overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-md">
+                    <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${f.accent}`} />
+                    <div className="relative min-w-0">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/10">
                           <Icon size={22} className="text-white/90" />
                         </div>
-                        <div className="text-lg font-semibold">{f.title}</div>
+                        <div className="min-w-0 truncate text-lg font-semibold">{f.title}</div>
                       </div>
-                      <p className="mt-4 text-sm text-white/65">{f.desc}</p>
+                      <p className="mt-4 text-sm text-white/65 line-clamp-3">{f.desc}</p>
                       <ul className="mt-5 space-y-2">
                         {f.bullets.map((b) => (
-                          <li
-                            key={b}
-                            className="flex items-center gap-2 text-sm text-white/75"
-                          >
-                            <CheckCircle
-                              size={16}
-                              className="text-emerald-300"
-                            />
-                            {b}
+                          <li key={b} className="flex min-w-0 items-center gap-2 text-sm text-white/75">
+                            <CheckCircle size={16} className="flex-shrink-0 text-emerald-300" />
+                            <span className="min-w-0 truncate">{b}</span>
                           </li>
                         ))}
                       </ul>
@@ -977,12 +912,10 @@ export default function HomePage() {
           >
             {testimonials.map((t) => (
               <motion.div key={t.tag} variants={cardIn}>
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-md">
-                  <div className="text-xs text-white/55">{t.tag}</div>
-                  <div className="mt-3 text-white/85">“{t.quote}”</div>
-                  <div className="mt-5 text-sm font-semibold text-white/85">
-                    {t.name}
-                  </div>
+                <div className="h-full overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur-md">
+                  <div className="truncate text-xs text-white/55">{t.tag}</div>
+                  <div className="mt-3 line-clamp-3 text-white/85">"{t.quote}"</div>
+                  <div className="mt-5 truncate text-sm font-semibold text-white/85">{t.name}</div>
                 </div>
               </motion.div>
             ))}
@@ -1000,38 +933,38 @@ export default function HomePage() {
                 <div className="pointer-events-none absolute -left-24 -bottom-24 h-80 w-80 rounded-full bg-emerald-400/12 blur-3xl" />
 
                 <div className="relative grid gap-10 md:grid-cols-12 md:items-center">
-                  <div className="md:col-span-8">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80">
-                      <Globe size={16} className="text-fuchsia-300" />
-                      Ready to level up?
+                  <div className="min-w-0 md:col-span-8">
+                    <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-sm text-white/80">
+                      <Globe size={16} className="flex-shrink-0 text-fuchsia-300" />
+                      <span className="truncate">Ready to level up?</span>
                     </div>
 
                     <h3 className="mt-4 text-3xl font-semibold md:text-4xl">
                       Create an account and start building momentum
                     </h3>
                     <p className="mt-3 max-w-2xl text-white/65">
-                      This CTA is intentionally simple: one primary action, one
-                      secondary action, and zero clutter.
+                      This CTA is intentionally simple: one primary action, one secondary action, and
+                      zero clutter.
                     </p>
                   </div>
 
-                  <div className="md:col-span-4 md:justify-self-end">
+                  <div className="flex-shrink-0 md:col-span-4 md:justify-self-end">
                     <div className="flex flex-col gap-3">
                       <Link
                         href="/register"
                         className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3 text-sm font-semibold text-black hover:bg-white/90"
                       >
-                        Create Free Account
+                        <span className="truncate">Create Free Account</span>
                         <ArrowRight
                           size={18}
-                          className="transition-transform group-hover:translate-x-0.5"
+                          className="flex-shrink-0 transition-transform group-hover:translate-x-0.5"
                         />
                       </Link>
                       <Link
                         href="/login"
                         className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 hover:bg-white/10"
                       >
-                        Sign In
+                        <span className="truncate">Sign In</span>
                       </Link>
                     </div>
                   </div>
@@ -1046,7 +979,7 @@ export default function HomePage() {
       <footer className="relative z-10 border-t border-white/10 bg-black/30">
         <div className="mx-auto max-w-7xl px-4 py-10">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm text-white/60">
+            <div className="min-w-0 truncate text-sm text-white/60">
               DevMatch — minimal, fast, scroll-polished UI.
             </div>
             <div className="flex flex-wrap gap-3 text-sm">
@@ -1056,10 +989,7 @@ export default function HomePage() {
               <Link href="/jobs" className="text-white/70 hover:text-white">
                 Jobs
               </Link>
-              <Link
-                href="/developers"
-                className="text-white/70 hover:text-white"
-              >
+              <Link href="/developers" className="text-white/70 hover:text-white">
                 Developers
               </Link>
               <Link href="/register" className="text-white/70 hover:text-white">
