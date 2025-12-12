@@ -1,6 +1,6 @@
 /**
  * @file src/pages/admin/index.ts
- * @description Admin page - renders AdminDashboard
+ * @description Admin page export
  */
 
-export { default } from "./adminDashboard";
+export { default } from "./AdminDashboard";
