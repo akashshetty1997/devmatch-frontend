@@ -3,7 +3,7 @@
  * @description Recruiter's view of their posted jobs
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -42,40 +42,52 @@ interface Job {
 
 const MyJobs = () => {
   const { success, error } = useToast();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Prevent duplicate API calls
+  const hasFetched = useRef(false);
+
   // Redirect if not authenticated or not a recruiter
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login?redirect=/my-jobs');
-      return;
-    }
-    if (user?.role !== 'RECRUITER') {
-      router.push('/dashboard');
-      return;
-    }
-  }, [isAuthenticated, user, router]);
+    if (authLoading) return;
 
+    if (!isAuthenticated) {
+      router.push("/login?redirect=/my-jobs");
+      return;
+    }
+    if (user?.role !== "RECRUITER") {
+      router.push("/");
+      return;
+    }
+  }, [authLoading, isAuthenticated, user, router]);
+
+  // Fetch jobs only once
   useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'RECRUITER') return;
+    if (authLoading) return;
+    if (!isAuthenticated || user?.role !== "RECRUITER") return;
+    if (hasFetched.current) return;
 
     const fetchJobs = async () => {
+      hasFetched.current = true;
       try {
         const response = await jobService.getMyJobs();
-        setJobs(response.data?.data?.jobs || response.data?.jobs || []);
-      } catch (err) {
-        error("Failed to load jobs");
+        const data = response.data?.data || response.data;
+        setJobs(Array.isArray(data) ? data : data?.jobs || []);
+      } catch (err: any) {
+        if (err.response?.status !== 429) {
+          error("Failed to load jobs");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchJobs();
-  }, [isAuthenticated, user, error]);
+  }, [authLoading, isAuthenticated, user, error]);
 
   const handleToggleStatus = async (job: Job) => {
     setActionLoading(job._id);
@@ -115,7 +127,16 @@ const MyJobs = () => {
   };
 
   // Show loading while checking authentication
-  if (!isAuthenticated || user?.role !== 'RECRUITER') {
+  if (authLoading || (!isAuthenticated && loading)) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Don't render if not recruiter (will redirect)
+  if (!isAuthenticated || user?.role !== "RECRUITER") {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <LoadingSpinner size="lg" />
@@ -124,6 +145,10 @@ const MyJobs = () => {
   }
 
   const activeJobs = jobs.filter((j) => j.isActive);
+  const totalApplications = jobs.reduce(
+    (sum, j) => sum + (j.applicationCount || 0),
+    0
+  );
 
   return (
     <>
@@ -139,7 +164,7 @@ const MyJobs = () => {
             <p className="text-gray-600">Manage your job postings</p>
           </div>
           <Link
-            href="/jobs/new"
+            href="/jobs/create"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
           >
             <Plus size={18} />
@@ -161,7 +186,7 @@ const MyJobs = () => {
           </div>
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-2xl font-bold text-blue-600">
-              {jobs.reduce((sum, j) => sum + j.applicationCount, 0)}
+              {totalApplications}
             </p>
             <p className="text-sm text-gray-500">Total Applications</p>
           </div>
@@ -181,7 +206,9 @@ const MyJobs = () => {
               <div
                 key={job._id}
                 className={`bg-white rounded-lg border p-6 transition-opacity ${
-                  job.isActive ? "border-gray-200" : "border-gray-200 opacity-60"
+                  job.isActive
+                    ? "border-gray-200"
+                    : "border-gray-200 opacity-60"
                 }`}
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -218,11 +245,11 @@ const MyJobs = () => {
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1">
                         <Eye size={14} />
-                        {job.viewCount} views
+                        {job.viewCount || 0} views
                       </span>
                       <span className="flex items-center gap-1">
                         <Users size={14} />
-                        {job.applicationCount} applications
+                        {job.applicationCount || 0} applications
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar size={14} />
@@ -232,6 +259,13 @@ const MyJobs = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <Link
+                      href={`/jobs/${job._id}/applications`}
+                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="View Applications"
+                    >
+                      <Users size={18} />
+                    </Link>
                     <Link
                       href={`/jobs/${job._id}`}
                       className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
@@ -290,7 +324,7 @@ const MyJobs = () => {
               Start attracting talent by posting your first job
             </p>
             <Link
-              href="/jobs/new"
+              href="/jobs/create"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus size={18} />

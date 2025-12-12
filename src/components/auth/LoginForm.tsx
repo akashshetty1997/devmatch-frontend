@@ -1,6 +1,6 @@
 /**
  * @file src/components/auth/LoginForm.tsx
- * @description Login form component with validation
+ * @description Login form component with validation + backend error handling
  */
 
 "use client";
@@ -11,13 +11,13 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { FiMail, FiLock, FiEye, FiEyeOff, FiGithub } from "react-icons/fi";
 import toast from "react-hot-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuthStore } from "@/store/authStore";
 import { Button, Input } from "@/components/common";
 import { isValidEmail } from "@/lib/utils";
 
 export default function LoginForm() {
   const router = useRouter();
-  const { login } = useAuth();
+  const login = useAuthStore((s) => s.login);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -26,13 +26,17 @@ export default function LoginForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // Clear error when user types
+
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+    if (submitError) {
+      setSubmitError(null);
     }
   };
 
@@ -59,13 +63,24 @@ export default function LoginForm() {
     if (!validate()) return;
 
     setIsLoading(true);
+    setSubmitError(null);
+
     try {
       await login(formData.email, formData.password);
       toast.success("Welcome back!");
-      // Redirect after successful login
       router.push("/");
-    } catch (err: any) {
-      const message = err.response?.data?.message || "Login failed. Please try again.";
+    } catch (error: any) {
+      console.log("LOGIN ERROR:", error);
+
+      let message = "Login failed. Please try again.";
+
+      if (error?.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error?.message) {
+        message = error.message;
+      }
+
+      setSubmitError(message);
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -137,6 +152,11 @@ export default function LoginForm() {
         >
           Sign In
         </Button>
+
+        {/* Backend error message */}
+        {submitError && (
+          <p className="mt-3 text-sm text-red-600">{submitError}</p>
+        )}
 
         {/* Divider */}
         <div className="relative my-6">

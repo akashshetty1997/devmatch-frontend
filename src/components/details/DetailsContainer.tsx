@@ -1,22 +1,21 @@
 /**
  * @file src/components/details/DetailsContainer.tsx
- * @description Main container for repo details page
+ * @description Main container for repo details page (redesigned: dark + glass + smooth motion)
  */
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { githubAPI, reviewAPINew, commentAPINew } from "@/lib/api";
+import { githubAPI, reviewAPINew, developerAPI } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageLoading } from "@/components/common";
 import RepoHeader from "./RepoHeader";
 import RepoStats from "./RepoStats";
 import RepoReadme from "./RepoReadme";
 import RepoReviews from "./RepoReviews";
-import RepoComments from "./RepoComments";
 import RepoSidebar from "./RepoSidebar";
 
 interface RepoData {
@@ -50,7 +49,7 @@ interface Review {
   rating: number;
   title: string;
   content: string;
-  author: {
+  reviewer: {
     _id: string;
     username: string;
     avatar: string | null;
@@ -58,15 +57,36 @@ interface Review {
   createdAt: string;
 }
 
-interface Comment {
-  _id: string;
-  content: string;
-  author: {
-    _id: string;
-    username: string;
-    avatar: string | null;
-  };
-  createdAt: string;
+function GlassCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-md",
+        "shadow-[0_30px_120px_-80px_rgba(0,0,0,0.95)]",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </div>
+  );
+}
+
+function GradientBg() {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      <div className="absolute -top-28 left-[8%] h-80 w-80 rounded-full bg-sky-500/12 blur-3xl" />
+      <div className="absolute -top-32 right-[10%] h-80 w-80 rounded-full bg-fuchsia-500/12 blur-3xl" />
+      <div className="absolute top-56 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-emerald-500/10 blur-3xl" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)] [background-size:28px_28px] opacity-35" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070A12]/30 to-[#070A12]" />
+    </div>
+  );
 }
 
 export default function DetailsContainer({ repoId }: { repoId: string }) {
@@ -75,83 +95,161 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
 
   const [repo, setRepo] = useState<RepoData | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"readme" | "reviews" | "comments">(
-    "readme"
-  );
+  const [activeTab, setActiveTab] = useState<"readme" | "reviews">("readme");
   const [isPinned, setIsPinned] = useState(false);
   const [userReview, setUserReview] = useState<Review | null>(null);
+
+  const easeOut = useMemo(() => [0.16, 1, 0.3, 1] as const, []);
 
   // Fetch repo data
   useEffect(() => {
     const fetchData = async () => {
-      if (!repoId) return;
+      if (!repoId) {
+        setError("Repository ID is required");
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       setError(null);
 
       try {
-        let repoData: RepoData;
+        let repoData: any;
 
-        // Check if repoId is owner/repo format (contains /)
         if (repoId.includes("/")) {
-          // Fetch by fullName (owner/repo)
           const repoResponse = await githubAPI.getRepoByFullName(repoId);
           repoData = repoResponse.data?.data || repoResponse.data;
         } else {
-          // Assume it's a MongoDB _id
           const repoResponse = await githubAPI.getRepo(repoId);
           repoData = repoResponse.data?.data || repoResponse.data;
         }
 
-        setRepo(repoData);
+        if (!repoData) throw new Error("Repository not found");
 
-        // Use MongoDB _id for API calls that need database ID
-        const mongoId = repoData._id;
+        const mappedData: RepoData = {
+          _id: repoData._id || "",
+          githubId: repoData.githubId || repoData.id || 0,
+          name: repoData.name || "",
+          fullName: repoData.fullName || repoData.full_name || "",
+          description: repoData.description || null,
+          htmlUrl: repoData.htmlUrl || repoData.html_url || "",
+          cloneUrl: repoData.cloneUrl || repoData.clone_url || "",
+          language: repoData.language || null,
+          languages: Array.isArray(repoData.languages)
+            ? repoData.languages
+            : [],
+          stars: Number(repoData.stars || repoData.stargazers_count) || 0,
+          forks: Number(repoData.forks || repoData.forks_count) || 0,
+          watchers: Number(repoData.watchers || repoData.watchers_count) || 0,
+          openIssues:
+            Number(repoData.openIssues || repoData.open_issues_count) || 0,
+          topics: Array.isArray(repoData.topics) ? repoData.topics : [],
+          license:
+            typeof repoData.license === "object"
+              ? repoData.license?.name || repoData.license?.spdx_id || null
+              : repoData.license || null,
+          defaultBranch:
+            repoData.defaultBranch || repoData.default_branch || "main",
+          ownerLogin: repoData.ownerLogin || repoData.owner?.login || "",
+          readme: repoData.readme || null,
+          aiSummary: repoData.aiSummary || null,
+          aiTechStack: Array.isArray(repoData.aiTechStack)
+            ? repoData.aiTechStack
+            : [],
+          githubCreatedAt:
+            repoData.githubCreatedAt || repoData.created_at || "",
+          githubUpdatedAt:
+            repoData.githubUpdatedAt || repoData.updated_at || "",
+          lastSyncedAt: repoData.lastSyncedAt || new Date().toISOString(),
+        };
 
-        if (mongoId) {
+        const isValidMongoId =
+          mappedData._id &&
+          mappedData._id.length === 24 &&
+          /^[a-f0-9]+$/i.test(mappedData._id);
+
+        // Fetch README if not included
+        if (!mappedData.readme && mappedData._id && isValidMongoId) {
           try {
-            // Fetch reviews using MongoDB _id
-            const reviewsResponse = await reviewAPINew.getByRepo(mongoId);
-            const reviewsData = reviewsResponse.data?.data?.reviews || [];
-            setReviews(reviewsData);
+            const readmeResponse = await githubAPI.getReadme(mappedData._id);
+            const readmeData = readmeResponse.data?.data || readmeResponse.data;
+            mappedData.readme =
+              readmeData?.readme || readmeData?.content || null;
+          } catch {
+            // ignore
+          }
+        }
 
-            // Check if current user has reviewed
-            if (user) {
-              const existingReview = reviewsData.find(
-                (r: Review) => r.author._id === user.id
+        setRepo(mappedData);
+
+        // Fetch reviews
+        if (isValidMongoId) {
+          try {
+            const reviewsResponse = await reviewAPINew.getByRepo(
+              mappedData._id
+            );
+            const reviewsData =
+              reviewsResponse.data?.data?.reviews ||
+              reviewsResponse.data?.data ||
+              [];
+
+            const mappedReviews = Array.isArray(reviewsData)
+              ? reviewsData.map((r: any) => ({
+                  ...r,
+                  reviewer: r.reviewer || r.author || null,
+                }))
+              : [];
+
+            setReviews(mappedReviews);
+
+            if (user && mappedReviews.length > 0) {
+              const existingReview = mappedReviews.find(
+                (r: Review) => r.reviewer?._id === user.id
               );
               setUserReview(existingReview || null);
             }
           } catch (reviewError) {
-            console.log("No reviews found or error fetching reviews");
+            console.log("Error fetching reviews:", reviewError);
             setReviews([]);
           }
 
-          try {
-            // Fetch comments using MongoDB _id
-            const commentsResponse = await commentAPINew.getByRepo(mongoId);
-            setComments(commentsResponse.data?.data?.comments || []);
-          } catch (commentError) {
-            console.log("No comments found or error fetching comments");
-            setComments([]);
+          // Check if repo is pinned (only for authenticated developers)
+          if (isAuthenticated && user?.role === "DEVELOPER") {
+            try {
+              const pinnedResponse = await developerAPI.getPinnedRepos(
+                user.username
+              );
+              const pinnedRepos = pinnedResponse.data?.data?.pinnedRepos || [];
+              const isRepoPinned = pinnedRepos.some(
+                (r: any) => r._id === mappedData._id
+              );
+              setIsPinned(isRepoPinned);
+            } catch (pinnedError) {
+              console.log("Error checking pinned status:", pinnedError);
+            }
           }
         }
       } catch (err: any) {
         console.error("Failed to fetch repo details:", err);
-        setError(err.response?.data?.message || "Failed to load repository");
+        let errorMessage = "Failed to load repository";
+
         if (err.response?.status === 404) {
+          errorMessage = "Repository not found";
           toast.error("Repository not found");
+        } else if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
         }
+
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [repoId, user]);
+  }, [repoId, user, isAuthenticated]);
 
   // Handle new review
   const handleReviewSubmit = async (data: {
@@ -164,22 +262,23 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
       return;
     }
 
-    try {
-      const mongoId = repo?._id;
-      if (!mongoId) {
-        throw new Error("Repository ID not found");
-      }
-
-      const response = await reviewAPINew.createForRepo(mongoId, data);
-      const newReview = response.data?.data || response.data;
-
-      setReviews((prev) => [newReview, ...prev]);
-      setUserReview(newReview);
-      toast.success("Review submitted!");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to submit review");
-      throw err;
+    const mongoId = repo?._id;
+    if (!mongoId || mongoId.length !== 24) {
+      toast.error("Cannot submit review - invalid repository ID");
+      throw new Error("Invalid repository ID");
     }
+
+    const response = await reviewAPINew.createForRepo(mongoId, data);
+    const newReview = response.data?.data || response.data;
+
+    const mappedReview = {
+      ...newReview,
+      reviewer: newReview.reviewer || newReview.author || null,
+    };
+
+    setReviews((prev) => [mappedReview, ...prev]);
+    setUserReview(mappedReview);
+    toast.success("Review submitted!");
   };
 
   // Handle review update
@@ -187,19 +286,19 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
     reviewId: string,
     data: { rating: number; title: string; content: string }
   ) => {
-    try {
-      const response = await reviewAPINew.update(reviewId, data);
-      const updatedReview = response.data?.data || response.data;
+    const response = await reviewAPINew.update(reviewId, data);
+    const updatedReview = response.data?.data || response.data;
 
-      setReviews((prev) =>
-        prev.map((r) => (r._id === reviewId ? updatedReview : r))
-      );
-      setUserReview(updatedReview);
-      toast.success("Review updated!");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to update review");
-      throw err;
-    }
+    const mappedReview = {
+      ...updatedReview,
+      reviewer: updatedReview.reviewer || updatedReview.author || null,
+    };
+
+    setReviews((prev) =>
+      prev.map((r) => (r._id === reviewId ? mappedReview : r))
+    );
+    setUserReview(mappedReview);
+    toast.success("Review updated!");
   };
 
   // Handle review delete
@@ -214,40 +313,6 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
     }
   };
 
-  // Handle new comment
-  const handleCommentSubmit = async (content: string) => {
-    if (!isAuthenticated) {
-      router.push(`/login?redirect=/details/${encodeURIComponent(repoId)}`);
-      return;
-    }
-
-    try {
-      const mongoId = repo?._id;
-      if (!mongoId) {
-        throw new Error("Repository ID not found");
-      }
-
-      const response = await commentAPINew.createOnRepo(mongoId, { content });
-      const newComment = response.data?.data || response.data;
-      setComments((prev) => [newComment, ...prev]);
-      toast.success("Comment added!");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to add comment");
-      throw err;
-    }
-  };
-
-  // Handle comment delete
-  const handleCommentDelete = async (commentId: string) => {
-    try {
-      await commentAPINew.delete(commentId);
-      setComments((prev) => prev.filter((c) => c._id !== commentId));
-      toast.success("Comment deleted");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to delete comment");
-    }
-  };
-
   // Handle pin repo
   const handlePinRepo = async () => {
     if (!isAuthenticated) {
@@ -255,30 +320,100 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
       return;
     }
 
-    toast.success(isPinned ? "Unpinned from profile" : "Pinned to profile");
-    setIsPinned(!isPinned);
+    if (user?.role !== "DEVELOPER") {
+      toast.error("Only developers can pin repositories");
+      return;
+    }
+
+    const mongoId = repo?._id;
+    if (!mongoId || mongoId.length !== 24) {
+      toast.error("Cannot pin - invalid repository ID");
+      return;
+    }
+
+    try {
+      if (isPinned) {
+        await developerAPI.unpinRepo(mongoId);
+        setIsPinned(false);
+        toast.success("Unpinned from profile");
+      } else {
+        await developerAPI.pinRepo(mongoId);
+        setIsPinned(true);
+        toast.success("Pinned to profile!");
+      }
+    } catch (err: any) {
+      console.error("Pin/unpin error:", err);
+      const message =
+        err.response?.data?.message || "Failed to update pin status";
+      toast.error(message);
+    }
+  };
+
+  // Handle back navigation
+  const handleBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/search");
+    }
   };
 
   if (loading) {
-    return <PageLoading />;
+    // Keep your existing PageLoading behavior, but put it on the dark canvas
+    return (
+      <div className="relative min-h-screen bg-[#070A12] text-white">
+        <GradientBg />
+        <div className="relative">
+          <PageLoading />
+        </div>
+      </div>
+    );
   }
 
   if (error || !repo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Repository Not Found
-          </h2>
-          <p className="text-gray-600 mb-4">
-            {error || "This repository does not exist."}
-          </p>
-          <button
-            onClick={() => router.push("/search")}
-            className="text-blue-600 hover:text-blue-700 font-medium"
+      <div className="relative min-h-screen bg-[#070A12] text-white">
+        <GradientBg />
+        <div className="relative mx-auto max-w-7xl px-4 py-14">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: easeOut }}
+            className="mx-auto max-w-xl"
           >
-            Back to Search
-          </button>
+            <GlassCard className="p-8">
+              <div className="flex items-start gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center text-2xl">
+                  🔍
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-white">
+                    Repository Not Found
+                  </h2>
+                  <p className="mt-1 text-sm text-white/70">
+                    {error ||
+                      "This repository does not exist or could not be loaded."}
+                  </p>
+
+                  <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={handleBack}
+                      className="inline-flex items-center justify-center rounded-xl bg-white text-[#0B1020] px-4 py-2.5 font-semibold hover:bg-white/90 transition"
+                    >
+                      Back to Search
+                    </button>
+
+                    <button
+                      onClick={() => router.push("/search")}
+                      className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 font-semibold text-white hover:bg-white/10 transition"
+                    >
+                      Go to Search
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
         </div>
       </div>
     );
@@ -286,86 +421,104 @@ export default function DetailsContainer({ repoId }: { repoId: string }) {
 
   const avgRating =
     reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+      ? reviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) /
+        reviews.length
       : 0;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen bg-gray-50"
+      transition={{ duration: 0.35, ease: easeOut }}
+      className="relative min-h-screen bg-[#070A12] text-white"
     >
-      <RepoHeader
-        repo={repo}
-        avgRating={avgRating}
-        reviewCount={reviews.length}
-        isPinned={isPinned}
-        onPin={handlePinRepo}
-        isAuthenticated={isAuthenticated}
-        isDeveloper={user?.role === "DEVELOPER"}
-      />
+      <GradientBg />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header (kept as-is; if this component is still light-themed, you must restyle RepoHeader too) */}
+      <div className="relative">
+        <RepoHeader
+          repo={repo}
+          avgRating={avgRating}
+          reviewCount={reviews.length}
+          isPinned={isPinned}
+          onPin={handlePinRepo}
+          isAuthenticated={isAuthenticated}
+          isDeveloper={user?.role === "DEVELOPER"}
+        />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
+          {/* Left */}
           <div className="lg:col-span-2 space-y-6">
-            <RepoStats repo={repo} />
+            <GlassCard className="p-5 sm:p-6">
+              <RepoStats repo={repo} />
+            </GlassCard>
 
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-              {[
-                { id: "readme", label: "README" },
-                { id: "reviews", label: `Reviews (${reviews.length})` },
-                { id: "comments", label: `Comments (${comments.length})` },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    activeTab === tab.id
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Tabs */}
+            <div className="sticky top-[72px] z-20">
+              <GlassCard className="p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setActiveTab("readme")}
+                    className={[
+                      "rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
+                      activeTab === "readme"
+                        ? "bg-white text-[#0B1020]"
+                        : "bg-white/5 text-white/75 hover:bg-white/10",
+                    ].join(" ")}
+                  >
+                    README
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("reviews")}
+                    className={[
+                      "rounded-2xl px-4 py-2.5 text-sm font-semibold transition",
+                      activeTab === "reviews"
+                        ? "bg-white text-[#0B1020]"
+                        : "bg-white/5 text-white/75 hover:bg-white/10",
+                    ].join(" ")}
+                  >
+                    Reviews ({reviews.length})
+                  </button>
+                </div>
+              </GlassCard>
             </div>
 
+            {/* Tab content */}
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.25, ease: easeOut }}
             >
-              {activeTab === "readme" && (
-                <RepoReadme readme={repo.readme} aiSummary={repo.aiSummary} />
-              )}
+              <GlassCard className="p-5 sm:p-6">
+                {activeTab === "readme" && (
+                  <RepoReadme readme={repo.readme} aiSummary={repo.aiSummary} />
+                )}
 
-              {activeTab === "reviews" && (
-                <RepoReviews
-                  reviews={reviews}
-                  userReview={userReview}
-                  isAuthenticated={isAuthenticated}
-                  currentUserId={user?.id}
-                  onSubmit={handleReviewSubmit}
-                  onUpdate={handleReviewUpdate}
-                  onDelete={handleReviewDelete}
-                />
-              )}
-
-              {activeTab === "comments" && (
-                <RepoComments
-                  comments={comments}
-                  isAuthenticated={isAuthenticated}
-                  currentUserId={user?.id}
-                  onSubmit={handleCommentSubmit}
-                  onDelete={handleCommentDelete}
-                />
-              )}
+                {activeTab === "reviews" && (
+                  <RepoReviews
+                    reviews={reviews}
+                    userReview={userReview}
+                    isAuthenticated={isAuthenticated}
+                    currentUserId={user?.id}
+                    onSubmit={handleReviewSubmit}
+                    onUpdate={handleReviewUpdate}
+                    onDelete={handleReviewDelete}
+                  />
+                )}
+              </GlassCard>
             </motion.div>
           </div>
 
+          {/* Right */}
           <div className="lg:col-span-1">
-            <RepoSidebar repo={repo} />
+            <div className="lg:sticky lg:top-[96px]">
+              <GlassCard className="p-5 sm:p-6">
+                <RepoSidebar repo={repo} />
+              </GlassCard>
+            </div>
           </div>
         </div>
       </div>

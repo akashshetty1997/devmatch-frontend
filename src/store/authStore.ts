@@ -34,7 +34,6 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
 
-  // Actions
   setUser: (user: User | null, profile?: Profile | null) => void;
   setToken: (token: string | null) => void;
   setLoading: (loading: boolean) => void;
@@ -51,13 +50,27 @@ interface AuthState {
   updateProfile: (profile: Profile) => void;
 }
 
+// Helper to clear all auth data
+const clearAuthData = () => {
+  Cookies.remove("token");
+  localStorage.removeItem("token");
+  delete api.defaults.headers.common["Authorization"];
+};
+
+// Helper to set all auth data
+const setAuthData = (token: string) => {
+  Cookies.set("token", token, { expires: 7 });
+  localStorage.setItem("token", token);
+  api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
       profile: null,
       token: null,
-      isLoading: true,
+      isLoading: false,
       isAuthenticated: false,
 
       setUser: (user, profile = null) =>
@@ -69,86 +82,157 @@ export const useAuthStore = create<AuthState>()(
 
       setToken: (token) => {
         if (token) {
-          Cookies.set("token", token, { expires: 7 });
-          // Also set the default header immediately for subsequent requests
-          api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+          setAuthData(token);
         } else {
-          Cookies.remove("token");
-          delete api.defaults.headers.common["Authorization"];
+          clearAuthData();
         }
         set({ token });
       },
 
       setLoading: (isLoading) => set({ isLoading }),
 
-      login: async (email, password) => {
+      login: async (email: string, password: string) => {
         set({ isLoading: true });
-        try {
-          const response = await authAPI.login({ email, password });
-          const { user, token } = response.data.data;
 
-          // Set token first (this also sets the axios header)
-          get().setToken(token);
-          
+        try {
+          // Clear any existing auth data first
+          clearAuthData();
+          set({ user: null, profile: null, token: null, isAuthenticated: false });
+
+          const response = await authAPI.login({ email, password });
+          const { user, token } = response.data?.data || {};
+
+          if (!user || !token) {
+            const message =
+              response.data?.message || "Login failed. Please try again.";
+            const axiosError: any = new Error(message);
+            axiosError.response = response;
+            throw axiosError;
+          }
+
+          // Set token everywhere
+          setAuthData(token);
+
+          // Update state with user from login response
           set({
             user,
+            token,
             isAuthenticated: true,
             isLoading: false,
           });
 
-          // Fetch full user data with profile
-          await get().fetchUser();
+          // Fetch full profile using the NEW token
+          try {
+            const meResponse = await authAPI.getMe();
+            const { profile, ...fullUser } = meResponse.data.data;
+            set({
+              user: fullUser,
+              profile,
+            });
+          } catch (profileError) {
+            // Profile fetch failed but login succeeded - user can still use the app
+            console.warn("Failed to fetch profile after login:", profileError);
+          }
         } catch (error) {
-          set({ isLoading: false });
+          clearAuthData();
+          set({
+            user: null,
+            profile: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
           throw error;
         }
       },
 
       register: async (data) => {
         set({ isLoading: true });
-        try {
-          const response = await authAPI.register(data);
-          const { user, token } = response.data.data;
 
-          // Set token first (this also sets the axios header)
-          get().setToken(token);
-          
+        try {
+          // Clear any existing auth data first
+          clearAuthData();
+          set({ user: null, profile: null, token: null, isAuthenticated: false });
+
+          const response = await authAPI.register(data);
+          const { user, token } = response.data?.data || {};
+
+          if (!user || !token) {
+            const message =
+              response.data?.message ||
+              "Registration failed. Please try again.";
+            const axiosError: any = new Error(message);
+            axiosError.response = response;
+            throw axiosError;
+          }
+
+          // Set token everywhere
+          setAuthData(token);
+
+          // Update state
           set({
             user,
+            token,
             isAuthenticated: true,
             isLoading: false,
           });
 
-          // Fetch full user data with profile
-          await get().fetchUser();
+          // Fetch full profile
+          try {
+            const meResponse = await authAPI.getMe();
+            const { profile, ...fullUser } = meResponse.data.data;
+            set({
+              user: fullUser,
+              profile,
+            });
+          } catch (profileError) {
+            console.warn("Failed to fetch profile after register:", profileError);
+          }
         } catch (error) {
-          set({ isLoading: false });
+          clearAuthData();
+          set({
+            user: null,
+            profile: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
           throw error;
         }
       },
 
       logout: () => {
-        Cookies.remove("token");
-        delete api.defaults.headers.common["Authorization"];
+        // Clear all auth data
+        clearAuthData();
+        
+        // Update state first
         set({
           user: null,
           profile: null,
           token: null,
           isAuthenticated: false,
         });
+        
+        // Clear persisted storage AFTER state update
+        // Use setTimeout to ensure it runs after Zustand's persist middleware
+        setTimeout(() => {
+          localStorage.removeItem("auth-storage");
+        }, 0);
       },
 
       fetchUser: async () => {
-        const token = get().token || Cookies.get("token");
+        // Get token from state first, then fallbacks
+        const token = get().token || localStorage.getItem("token") || Cookies.get("token");
+        
         if (!token) {
           set({ isLoading: false, isAuthenticated: false });
           return;
         }
 
-        // Ensure token is set in axios headers
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
+        // Ensure token is set in all places
+        setAuthData(token);
         set({ isLoading: true });
+
         try {
           const response = await authAPI.getMe();
           const { profile, ...user } = response.data.data;
@@ -161,9 +245,8 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         } catch (error) {
-          // Token invalid
-          Cookies.remove("token");
-          delete api.defaults.headers.common["Authorization"];
+          clearAuthData();
+          localStorage.removeItem("auth-storage");
           set({
             user: null,
             profile: null,
@@ -183,10 +266,9 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
-      // Rehydrate: restore axios header when loading from storage
       onRehydrateStorage: () => (state) => {
         if (state?.token) {
-          api.defaults.headers.common["Authorization"] = `Bearer ${state.token}`;
+          setAuthData(state.token);
         }
       },
     }

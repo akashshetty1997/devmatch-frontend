@@ -20,7 +20,11 @@ const api = axios.create({
 // Request interceptor - Add token to requests
 api.interceptors.request.use(
   (config) => {
-    const token = Cookies.get("token");
+    // Check both localStorage and Cookies for token
+    const token = typeof window !== 'undefined' 
+      ? localStorage.getItem("token") || Cookies.get("token")
+      : Cookies.get("token");
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -156,6 +160,7 @@ export const profileAPI = {
     githubUsername?: string;
     portfolioUrl?: string;
     linkedinUrl?: string;
+    twitterUrl?: string;
   }) => api.put("/profile/developer", data),
 
   getRecruiterProfile: () => api.get("/profile/recruiter"),
@@ -167,6 +172,10 @@ export const profileAPI = {
     companySize?: string;
     industry?: string;
     positionTitle?: string;
+    location?: { city?: string; state?: string; country?: string };
+    portfolioUrl?: string;
+    linkedinUrl?: string;
+    twitterUrl?: string;
   }) => api.put("/profile/recruiter", data),
 
   addSkill: (skillSlug: string) => api.post("/profile/skills", { skillSlug }),
@@ -515,8 +524,7 @@ export const githubAPI = {
   getRepo: (id: string) => api.get(`/repos/${id}`),
 
   // Get repo by full name (owner/repo) - Updated endpoint
-  getRepoByFullName: (fullName: string) =>
-    api.get(`/github/repos/${fullName}`),
+  getRepoByFullName: (fullName: string) => api.get(`/github/repos/${fullName}`),
 
   // Get trending repos
   getTrending: (params?: {
@@ -529,7 +537,8 @@ export const githubAPI = {
   getReadme: (fullName: string) => api.get(`/github/repos/${fullName}/readme`),
 
   // Get repo languages
-  getLanguages: (fullName: string) => api.get(`/github/repos/${fullName}/languages`),
+  getLanguages: (fullName: string) =>
+    api.get(`/github/repos/${fullName}/languages`),
 
   // Sync repo data from GitHub (refresh cache)
   syncRepo: (fullName: string) => api.post(`/github/repos/${fullName}/sync`),
@@ -540,19 +549,19 @@ export const developerAPI = {
   // Get developer profile
   getProfile: (userId: string) => api.get(`/developers/${userId}`),
 
-  // Get developer's pinned repos
-  getPinnedRepos: (userId: string) =>
-    api.get(`/developers/${userId}/repos/pinned`),
+  // Get developer's pinned repos by username (public)
+  getPinnedRepos: (username: string) =>
+    api.get(`/developers/${username}/pinned-repos`),
 
   // Get developer's all repos
   getRepos: (username: string, page = 1) =>
     api.get(`/developers/${username}/repos`, { params: { page } }),
 
-  // Pin a repo
-  pinRepo: (repoId: string) => api.post(`/developers/repos/${repoId}/pin`),
+  // Pin a repo (for own profile)
+  pinRepo: (repoId: string) => api.post(`/developers/me/pinned-repos`, { repoId }),
 
-  // Unpin a repo
-  unpinRepo: (repoId: string) => api.delete(`/developers/repos/${repoId}/pin`),
+  // Unpin a repo (for own profile)
+  unpinRepo: (repoId: string) => api.delete(`/developers/me/pinned-repos/${repoId}`),
 
   // Search developers
   search: (params: {
@@ -571,4 +580,3 @@ export const skillAPI = {
   search: (q: string, limit = 10) =>
     api.get("/skills/search", { params: { q, limit } }),
 };
-

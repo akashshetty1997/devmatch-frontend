@@ -1,14 +1,24 @@
 /**
  * @file src/components/details/RepoSidebar.tsx
- * @description Repository details sidebar
+ * @description Repository details sidebar (redesigned + dark mode safe)
  */
 
-'use client';
+"use client";
 
-import { FiGithub, FiLink, FiCalendar, FiGitBranch, FiTag, FiCopy, FiCheck } from 'react-icons/fi';
-import { useState } from 'react';
-import { Card, CardBody, CardHeader, Badge } from '@/components/common';
-import { formatDate } from '@/lib/utils';
+import { useMemo, useState } from "react";
+import {
+  FiGithub,
+  FiCalendar,
+  FiGitBranch,
+  FiTag,
+  FiCopy,
+  FiCheck,
+  FiArrowLeft,
+  FiTerminal,
+  FiClock,
+} from "react-icons/fi";
+import { Card, CardBody, CardHeader, Badge, Button } from "@/components/common";
+import { formatDate } from "@/lib/utils";
 
 interface RepoSidebarProps {
   repo: {
@@ -26,124 +36,214 @@ interface RepoSidebarProps {
 export default function RepoSidebar({ repo }: RepoSidebarProps) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopyClone = () => {
-    navigator.clipboard.writeText(repo.cloneUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const cloneLabel = useMemo(() => {
+    try {
+      const url = new URL(repo.cloneUrl);
+      return url.hostname;
+    } catch {
+      return "Clone URL";
+    }
+  }, [repo.cloneUrl]);
+
+  const handleCopyClone = async () => {
+    try {
+      await navigator.clipboard.writeText(repo.cloneUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+    }
+  };
+
+  const handleBack = () => {
+    try {
+      if (window.history.length > 1) window.history.back();
+      else window.location.href = "/search";
+    } catch {
+      window.location.href = "/search";
+    }
   };
 
   return (
-    <div className="space-y-6 sticky top-24">
-      {/* Clone URL */}
-      <Card>
-        <CardHeader>
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <FiGitBranch className="w-4 h-4" />
-            Clone
-          </h3>
-        </CardHeader>
-        <CardBody>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={repo.cloneUrl}
-              readOnly
-              className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg truncate"
-            />
-            <button
+    <aside className="space-y-5 lg:sticky lg:top-24">
+      {/* Back */}
+      <button
+        onClick={handleBack}
+        className="inline-flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-gray-800 dark:text-white/60 dark:hover:text-white"
+      >
+        <FiArrowLeft className="h-4 w-4" />
+        Back
+      </button>
+
+      {/* Quick actions */}
+      <Card className="border-gray-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
+        <CardBody className="p-4">
+          <div className="flex gap-2">
+            <a
+              href={repo.htmlUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button
+                variant="outline"
+                className="w-full border-gray-300 bg-transparent text-gray-800 hover:bg-gray-50 dark:border-white/15 dark:text-white dark:hover:bg-white/[0.06]"
+                leftIcon={<FiGithub />}
+              >
+                GitHub
+              </Button>
+            </a>
+
+            <Button
+              variant="outline"
               onClick={handleCopyClone}
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="border-gray-300 bg-transparent text-gray-800 hover:bg-gray-50 dark:border-white/15 dark:text-white dark:hover:bg-white/[0.06]"
+              title="Copy clone URL"
             >
               {copied ? (
-                <FiCheck className="w-4 h-4 text-green-500" />
+                <FiCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
               ) : (
-                <FiCopy className="w-4 h-4" />
+                <FiCopy className="h-5 w-5" />
               )}
-            </button>
+            </Button>
           </div>
-        </CardBody>
-      </Card>
 
-      {/* Repository Info */}
-      <Card>
-        <CardHeader>
-          <h3 className="font-semibold text-gray-900">About</h3>
-        </CardHeader>
-        <CardBody className="space-y-4">
-          {/* License */}
-          {repo.license && (
-            <div className="flex items-center gap-3">
-              <FiTag className="w-4 h-4 text-gray-400" />
-              <div>
-                <p className="text-sm text-gray-500">License</p>
-                <p className="font-medium text-gray-900">{repo.license}</p>
+          <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-white/60">
+                <FiTerminal className="h-4 w-4" />
+                <span>{cloneLabel}</span>
               </div>
+              <span className="text-xs text-gray-500 dark:text-white/50">
+                {copied ? "Copied" : "Clone"}
+              </span>
             </div>
-          )}
 
-          {/* Default Branch */}
-          <div className="flex items-center gap-3">
-            <FiGitBranch className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-sm text-gray-500">Default Branch</p>
-              <p className="font-medium text-gray-900">{repo.defaultBranch}</p>
+            <div className="select-all truncate rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-800 dark:bg-white/[0.06] dark:text-white/80">
+              {repo.cloneUrl}
             </div>
-          </div>
 
-          {/* Created */}
-          <div className="flex items-center gap-3">
-            <FiCalendar className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-sm text-gray-500">Created</p>
-              <p className="font-medium text-gray-900">{formatDate(repo.githubCreatedAt)}</p>
+            <div className="mt-2 text-xs text-gray-500 dark:text-white/50">
+              git clone{" "}
+              <span className="font-mono text-gray-700 dark:text-white/70">
+                {repo.cloneUrl}
+              </span>
             </div>
           </div>
-
-          {/* Last Updated */}
-          <div className="flex items-center gap-3">
-            <FiCalendar className="w-4 h-4 text-gray-400" />
-            <div>
-              <p className="text-sm text-gray-500">Last Updated</p>
-              <p className="font-medium text-gray-900">{formatDate(repo.githubUpdatedAt)}</p>
-            </div>
-          </div>
-
-          {/* GitHub Link */}
-          <a
-            href={repo.htmlUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
-          >
-            <FiGithub className="w-4 h-4" />
-            View on GitHub
-          </a>
         </CardBody>
       </Card>
 
-      {/* AI Tech Stack */}
+      {/* About */}
+      <Card className="border-gray-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
+        <CardHeader className="border-b border-gray-100 dark:border-white/10">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+            About
+          </h3>
+        </CardHeader>
+
+        <CardBody className="p-4">
+          <div className="space-y-4">
+            {repo.license && (
+              <MetaRow
+                icon={<FiTag className="h-4 w-4" />}
+                label="License"
+                value={repo.license}
+              />
+            )}
+
+            <MetaRow
+              icon={<FiGitBranch className="h-4 w-4" />}
+              label="Default branch"
+              value={repo.defaultBranch || "main"}
+              mono
+            />
+
+            <MetaRow
+              icon={<FiCalendar className="h-4 w-4" />}
+              label="Created"
+              value={formatDate(repo.githubCreatedAt)}
+            />
+
+            <MetaRow
+              icon={<FiCalendar className="h-4 w-4" />}
+              label="Last updated"
+              value={formatDate(repo.githubUpdatedAt)}
+            />
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Tech Stack */}
       {repo.aiTechStack && repo.aiTechStack.length > 0 && (
-        <Card>
-          <CardHeader>
-            <h3 className="font-semibold text-gray-900">Tech Stack</h3>
-            <span className="text-xs text-gray-500">AI Generated</span>
+        <Card className="border-gray-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
+          <CardHeader className="border-b border-gray-100 dark:border-white/10">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Tech Stack
+              </h3>
+              <span className="text-xs text-gray-500 dark:text-white/50">
+                AI generated
+              </span>
+            </div>
           </CardHeader>
-          <CardBody>
+
+          <CardBody className="p-4">
             <div className="flex flex-wrap gap-2">
-              {repo.aiTechStack.map((tech) => (
-                <Badge key={tech} variant="primary" size="sm">
+              {repo.aiTechStack.slice(0, 16).map((tech) => (
+                <Badge
+                  key={tech}
+                  variant="primary"
+                  size="sm"
+                  className="dark:bg-blue-500/15 dark:text-blue-200"
+                >
                   {tech}
                 </Badge>
               ))}
+              {repo.aiTechStack.length > 16 && (
+                <span className="text-xs text-gray-500 dark:text-white/50">
+                  +{repo.aiTechStack.length - 16} more
+                </span>
+              )}
             </div>
           </CardBody>
         </Card>
       )}
 
-      {/* Last Synced */}
-      <p className="text-xs text-gray-400 text-center">
-        Data synced {formatDate(repo.lastSyncedAt)}
-      </p>
+      {/* Synced */}
+      <div className="flex items-center justify-center gap-2 text-xs text-gray-400 dark:text-white/40">
+        <FiClock className="h-4 w-4" />
+        <span>Synced {formatDate(repo.lastSyncedAt)}</span>
+      </div>
+    </aside>
+  );
+}
+
+function MetaRow({
+  icon,
+  label,
+  value,
+  mono,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 text-gray-400 dark:text-white/35">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-gray-500 dark:text-white/50">
+          {label}
+        </p>
+        <p
+          className={`mt-0.5 break-words text-sm text-gray-900 dark:text-white/85 ${
+            mono ? "font-mono" : "font-medium"
+          }`}
+        >
+          {value}
+        </p>
+      </div>
     </div>
   );
 }

@@ -25,7 +25,7 @@ export const applicationService = {
     limit?: number;
     status?: string;
   }) => {
-    return api.get("/applications/my", { params });
+    return api.get("/applications/me", { params }); // Changed from /my to /me
   },
 
   // Get single application
@@ -87,4 +87,8 @@ export const applicationService = {
   getApplicationStats: () => {
     return api.get("/applications/stats");
   },
+
+  withdraw: (applicationId: string) => {
+  return api.patch(`/applications/${applicationId}/withdraw`);
+},
 };

@@ -3,4 +3,4 @@
  * @description Admin page - renders AdminDashboard
  */
 
-export { default } from "./AdminDashboard";
+export { default } from "./adminDashboard";

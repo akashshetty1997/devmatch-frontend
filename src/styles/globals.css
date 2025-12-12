@@ -2,6 +2,11 @@
 
 @source "../../src/**/*.{js,ts,jsx,tsx,mdx}";
 
+/* Make native controls (select/date/scrollbars) dark */
+:root {
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -15,8 +20,92 @@ body {
 }
 
 body {
-  color: rgb(17, 24, 39);
-  background: rgb(255, 255, 255);
+  background: #070a12;
+  color: rgba(255, 255, 255, 0.92);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global dark form controls - use !important to override Tailwind classes */
+input,
+textarea,
+select {
+  color: rgba(255, 255, 255, 0.92) !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #3b82f6 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Dropdown option list readable on all browsers */
+select option {
+  color: #0b1020 !important;
+  background: #ffffff !important;
+}
+
+/* Chrome autofill */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.92) !important;
+  -webkit-box-shadow: 0 0 0px 1000px rgba(11, 16, 32, 0.92) inset !important;
+  box-shadow: 0 0 0px 1000px rgba(11, 16, 32, 0.92) inset !important;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Fix for disabled inputs */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+/* Fix white backgrounds on cards/containers if needed */
+.bg-white {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+.bg-gray-50 {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+.bg-gray-100 {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Fix text colors */
+.text-gray-900 {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.text-gray-700 {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.text-gray-600 {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.text-gray-500 {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Fix borders */
+.border-gray-200,
+.border-gray-300 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 a {

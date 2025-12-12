@@ -1,11 +1,16 @@
 /**
  * @file src/pages/feed.tsx
- * @description Social feed page with repo/job sharing
+ * @description Reddit-style feed redesign (layout + cards + dark mode)
+ *
+ * Notes:
+ * - Keeps your data logic mostly intact.
+ * - Focus is UI/UX: Reddit-like two-column layout, vote rail, dense cards, dark mode safe.
+ * - Uses tailwind `dark:` classes (requires `dark` class on <html> or via next-themes).
  */
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +35,9 @@ import {
   Bookmark,
   Code,
   Search,
+  Flame,
+  Clock,
+  TrendingUp,
 } from "lucide-react";
 
 interface Post {
@@ -122,11 +130,8 @@ const Feed = () => {
   // Fetch posts
   const fetchPosts = useCallback(
     async (pageNum: number, append = false) => {
-      if (pageNum === 1) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+      if (pageNum === 1) setLoading(true);
+      else setLoadingMore(true);
 
       try {
         const response = await postService.getFeed({
@@ -134,19 +139,12 @@ const Feed = () => {
           limit: 10,
         });
         const rawPosts = response.data?.data?.posts || [];
-
-        // Map hasLiked to isLiked for frontend consistency
         const newPosts = rawPosts.map((post: any) => ({
           ...post,
           isLiked: post.hasLiked || false,
         }));
 
-        if (append) {
-          setPosts((prev) => [...prev, ...newPosts]);
-        } else {
-          setPosts(newPosts);
-        }
-
+        setPosts((prev) => (append ? [...prev, ...newPosts] : newPosts));
         setHasMore(newPosts.length === 10);
       } catch (err) {
         console.error("Failed to fetch posts:", err);
@@ -176,25 +174,17 @@ const Feed = () => {
           fetchPosts(nextPage, true);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.15 }
     );
 
-    if (loadMoreRef.current) {
-      observerRef.current.observe(loadMoreRef.current);
-    }
+    if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
 
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
+    return () => observerRef.current?.disconnect();
   }, [loading, loadingMore, hasMore, page, fetchPosts]);
 
   // Search repos
   const handleSearchRepos = async () => {
-    console.log("Searching repos for query:", repoSearchQuery);
     if (!repoSearchQuery.trim()) return;
-
     setSearchingRepos(true);
     try {
       const response = await githubService.searchRepos({ q: repoSearchQuery });
@@ -207,7 +197,6 @@ const Feed = () => {
     }
   };
 
-  // Select repo
   const handleSelectRepo = (repo: RepoResult) => {
     setSelectedRepo(repo);
     setPostType("SHARE_REPO");
@@ -216,7 +205,6 @@ const Feed = () => {
     setRepoResults([]);
   };
 
-  // Clear selected repo
   const handleClearRepo = () => {
     setSelectedRepo(null);
     setPostType("TEXT");
@@ -224,40 +212,26 @@ const Feed = () => {
 
   // Create new post
   const handleCreatePost = async () => {
-    if (!newPostContent.trim()) {
-      error("Please enter some content");
-      return;
-    }
-
-    // Validate repo selection for SHARE_REPO type
-    if (postType === "SHARE_REPO" && !selectedRepo) {
-      error("Please select a repository to share");
-      return;
-    }
+    if (!newPostContent.trim()) return error("Please enter some content");
+    if (postType === "SHARE_REPO" && !selectedRepo)
+      return error("Please select a repository to share");
 
     setIsPosting(true);
     try {
-      const postData: any = {
-        content: newPostContent,
-        type: postType,
-      };
+      const postData: any = { content: newPostContent, type: postType };
 
       if (postType === "SHARE_REPO" && selectedRepo) {
-        // Send both githubId and repoFullName for backend to create/find RepoSnapshot
         postData.githubId = selectedRepo.id;
         postData.repoFullName = selectedRepo.full_name;
       }
-      if (postType === "SHARE_JOB" && selectedJob) {
+      if (postType === "SHARE_JOB" && selectedJob)
         postData.jobPostId = selectedJob._id;
-      }
 
       const response = await postService.createPost(postData);
       const newPost = response.data?.data || response.data;
 
-      // Add new post to top of feed with isLiked = false
       setPosts((prev) => [{ ...newPost, isLiked: false }, ...prev]);
 
-      // Reset form
       setNewPostContent("");
       setPostType("TEXT");
       setSelectedRepo(null);
@@ -271,7 +245,7 @@ const Feed = () => {
     }
   };
 
-  // Handle like
+  // Like
   const handleLike = async (postId: string) => {
     if (!isAuthenticated) {
       router.push(`/login?redirect=${encodeURIComponent("/feed")}`);
@@ -282,7 +256,6 @@ const Feed = () => {
       const post = posts.find((p) => p._id === postId);
       if (!post) return;
 
-      // Optimistic update
       setPosts((prev) =>
         prev.map((p) =>
           p._id === postId
@@ -295,13 +268,9 @@ const Feed = () => {
         )
       );
 
-      if (post.isLiked) {
-        await postService.unlikePost(postId);
-      } else {
-        await postService.likePost(postId);
-      }
+      if (post.isLiked) await postService.unlikePost(postId);
+      else await postService.likePost(postId);
     } catch (err) {
-      // Revert on error
       setPosts((prev) =>
         prev.map((p) =>
           p._id === postId
@@ -317,7 +286,6 @@ const Feed = () => {
     }
   };
 
-  // Handle delete post
   const handleDeletePost = async (postId: string) => {
     try {
       await postService.deletePost(postId);
@@ -328,7 +296,6 @@ const Feed = () => {
     }
   };
 
-  // Handle comment count update
   const handleCommentAdded = (postId: string) => {
     setPosts((prev) =>
       prev.map((p) =>
@@ -337,250 +304,473 @@ const Feed = () => {
     );
   };
 
+  // Simple Reddit-ish “sort” UI only (doesn’t change API call)
+  const [sortUi, setSortUi] = useState<"hot" | "new" | "top">("hot");
+  const sortPills = useMemo(
+    () => [
+      { id: "hot" as const, label: "Hot", icon: Flame },
+      { id: "new" as const, label: "New", icon: Clock },
+      { id: "top" as const, label: "Top", icon: TrendingUp },
+    ],
+    []
+  );
+
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Feed</h1>
-        <p className="text-gray-600">
-          See what developers and recruiters are sharing
-        </p>
-      </div>
-
-      {/* Create Post */}
-      {isAuthenticated && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          <div className="flex gap-3">
-            {/* Avatar */}
-            {user?.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.username}
-                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                {user?.username?.charAt(0).toUpperCase()}
+    <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-[#0b0f14] dark:text-white">
+      <div className="mx-auto flex max-w-6xl gap-6 px-4 py-6">
+        {/* Left gutter (like Reddit) */}
+        <div className="hidden lg:block lg:w-56">
+          <div className="sticky top-6 space-y-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                Home
               </div>
-            )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-white/55">
+                Your personal DevMatch feed.
+              </p>
 
-            {/* Input */}
-            <div className="flex-1">
-              <textarea
-                value={newPostContent}
-                onChange={(e) => setNewPostContent(e.target.value)}
-                placeholder="What's on your mind?"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-              />
-
-              {/* Selected Repo Preview */}
-              {selectedRepo && (
-                <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                        <Github size={16} />
-                        {selectedRepo.full_name}
-                      </div>
-                      {selectedRepo.description && (
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                          {selectedRepo.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                        {selectedRepo.language && (
-                          <span className="flex items-center gap-1">
-                            <Code size={10} />
-                            {selectedRepo.language}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <Star size={10} />
-                          {selectedRepo.stargazers_count}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleClearRepo}
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
+              {!isAuthenticated ? (
+                <div className="mt-4 space-y-2">
+                  <Link
+                    href="/login?redirect=/feed"
+                    className="block rounded-xl bg-blue-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="block rounded-xl border border-gray-200 px-3 py-2 text-center text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  <Link
+                    href={`/profile/${user?.username}`}
+                    className="block rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
+                  >
+                    View profile
+                  </Link>
                 </div>
               )}
+            </div>
 
-              {/* Selected Job Preview */}
-              {selectedJob && (
-                <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                        <Briefcase size={16} />
-                        {selectedJob.title}
-                      </div>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {selectedJob.companyName}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedJob(null);
-                        setPostType("TEXT");
-                      }}
-                      className="p-1 text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                Tips
+              </div>
+              <ul className="mt-2 space-y-2 text-xs text-gray-600 dark:text-white/60">
+                <li>• Share repos with context (what problem it solves).</li>
+                <li>• Keep posts short. Add links in the repo card.</li>
+                <li>• Use comments for discussion, not essays.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
-              {/* Actions */}
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex items-center gap-2">
+        {/* Main column */}
+        <div className="w-full max-w-2xl">
+          {/* Header */}
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Feed</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-white/55">
+                What developers and recruiters are sharing
+              </p>
+            </div>
+
+            {/* Sort pills (UI only) */}
+            <div className="hidden sm:flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              {sortPills.map((p) => {
+                const Icon = p.icon;
+                const active = sortUi === p.id;
+                return (
                   <button
-                    onClick={() => setShowRepoModal(true)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      selectedRepo
-                        ? "bg-blue-100 text-blue-600"
-                        : "hover:bg-gray-100 text-gray-500"
-                    }`}
-                    title="Share Repository"
+                    key={p.id}
+                    onClick={() => setSortUi(p.id)}
+                    className={[
+                      "inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                      active
+                        ? "bg-gray-900 text-white dark:bg-white dark:text-black"
+                        : "text-gray-600 hover:bg-gray-50 dark:text-white/60 dark:hover:bg-white/[0.06]",
+                    ].join(" ")}
                   >
-                    <Github size={18} />
+                    <Icon size={16} />
+                    {p.label}
                   </button>
-                  <button
-                    onClick={() => setShowJobModal(true)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      selectedJob
-                        ? "bg-purple-100 text-purple-600"
-                        : "hover:bg-gray-100 text-gray-500"
-                    }`}
-                    title="Share Job"
-                  >
-                    <Briefcase size={18} />
-                  </button>
-                </div>
+                );
+              })}
+            </div>
+          </div>
 
-                <button
-                  onClick={handleCreatePost}
-                  disabled={isPosting || !newPostContent.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isPosting ? (
-                    <LoadingSpinner size="sm" />
+          {/* Create Post (Reddit composer style) */}
+          {isAuthenticated && (
+            <div className="mb-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="flex gap-3 p-4">
+                <Link href={`/profile/${user?.username}`} className="shrink-0">
+                  {user?.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.avatar}
+                      alt={user.username}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
                   ) : (
-                    <Send size={16} />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-bold text-white">
+                      {user?.username?.charAt(0).toUpperCase()}
+                    </div>
                   )}
-                  Post
-                </button>
+                </Link>
+
+                <div className="min-w-0 flex-1">
+                  <textarea
+                    value={newPostContent}
+                    onChange={(e) => setNewPostContent(e.target.value)}
+                    placeholder="Create post"
+                    rows={3}
+                    className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
+                  />
+
+                  {/* Selected Repo */}
+                  {selectedRepo && (
+                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                            <Github
+                              size={16}
+                              className="text-gray-500 dark:text-white/60"
+                            />
+                            <span className="truncate">
+                              {selectedRepo.full_name}
+                            </span>
+                          </div>
+                          {selectedRepo.description && (
+                            <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-white/60">
+                              {selectedRepo.description}
+                            </p>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-white/55">
+                            {selectedRepo.language && (
+                              <span className="inline-flex items-center gap-1">
+                                <Code size={12} />
+                                {selectedRepo.language}
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1">
+                              <Star size={12} />
+                              {selectedRepo.stargazers_count}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleClearRepo}
+                          className="rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                          title="Remove repo"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Selected Job */}
+                  {selectedJob && (
+                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                            <Briefcase
+                              size={16}
+                              className="text-gray-500 dark:text-white/60"
+                            />
+                            <span className="truncate">
+                              {selectedJob.title}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-600 dark:text-white/60">
+                            {selectedJob.companyName}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedJob(null);
+                            setPostType("TEXT");
+                          }}
+                          className="rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                          title="Remove job"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Composer actions */}
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowRepoModal(true)}
+                        className={[
+                          "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors",
+                          selectedRepo
+                            ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-200"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.02] dark:text-white/80 dark:hover:bg-white/[0.06]",
+                        ].join(" ")}
+                      >
+                        <Github size={16} />
+                        Share repo
+                      </button>
+
+                      <button
+                        onClick={() => setShowJobModal(true)}
+                        className={[
+                          "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-colors",
+                          selectedJob
+                            ? "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-500/40 dark:bg-purple-500/10 dark:text-purple-200"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.02] dark:text-white/80 dark:hover:bg-white/[0.06]",
+                        ].join(" ")}
+                      >
+                        <Briefcase size={16} />
+                        Share job
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={handleCreatePost}
+                      disabled={isPosting || !newPostContent.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isPosting ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <Send size={16} />
+                      )}
+                      Post
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Login prompt */}
+          {!isAuthenticated && (
+            <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+              <Link
+                href="/login?redirect=/feed"
+                className="font-semibold hover:underline"
+              >
+                Login
+              </Link>{" "}
+              or{" "}
+              <Link href="/register" className="font-semibold hover:underline">
+                register
+              </Link>{" "}
+              to create posts and interact with the community.
+            </div>
+          )}
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner size="lg" />
+            </div>
+          )}
+
+          {/* Posts */}
+          {!loading && (
+            <div className="space-y-3">
+              {posts.map((post) => (
+                <PostCard
+                  key={post._id}
+                  post={post}
+                  currentUserId={user?.id}
+                  onLike={handleLike}
+                  onDelete={handleDeletePost}
+                  onCommentAdded={handleCommentAdded}
+                />
+              ))}
+
+              <div ref={loadMoreRef} className="h-10" />
+
+              {loadingMore && (
+                <div className="flex justify-center py-4">
+                  <LoadingSpinner size="md" />
+                </div>
+              )}
+
+              {!hasMore && posts.length > 0 && (
+                <p className="py-6 text-center text-sm text-gray-500 dark:text-white/50">
+                  You’ve reached the end of the feed
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Empty */}
+          {!loading && posts.length === 0 && (
+            <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              <MessageCircle
+                className="mx-auto mb-4 text-gray-300 dark:text-white/15"
+                size={56}
+              />
+              <h3 className="text-lg font-semibold">No posts yet</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-white/55">
+                Be the first to share something.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Right column (Reddit sidebar-ish) */}
+        <div className="hidden xl:block xl:w-72">
+          <div className="sticky top-6 space-y-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="text-sm font-semibold">Community</div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-white/55">
+                Keep it useful. Explain why you shared a repo/job.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center dark:border-white/10 dark:bg-white/[0.04]">
+                  <div className="text-xs text-gray-500 dark:text-white/55">
+                    Posts
+                  </div>
+                  <div className="mt-1 text-lg font-semibold">
+                    {posts.length}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center dark:border-white/10 dark:bg-white/[0.04]">
+                  <div className="text-xs text-gray-500 dark:text-white/55">
+                    Sort
+                  </div>
+                  <div className="mt-1 text-lg font-semibold capitalize">
+                    {sortUi}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="text-sm font-semibold">Quick actions</div>
+              <div className="mt-3 space-y-2">
+                <Link
+                  href="/search"
+                  className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
+                >
+                  Explore repos{" "}
+                  <ExternalLink
+                    size={16}
+                    className="text-gray-400 dark:text-white/40"
+                  />
+                </Link>
+                <Link
+                  href="/jobs"
+                  className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/[0.06]"
+                >
+                  Browse jobs{" "}
+                  <ExternalLink
+                    size={16}
+                    className="text-gray-400 dark:text-white/40"
+                  />
+                </Link>
               </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Repo Selection Modal */}
+      {/* Repo Modal (styled) */}
       {showRepoModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-lg max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Select a Repository
-              </h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0f1620]">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-white/10">
+              <div>
+                <h3 className="text-base font-semibold">Select a repository</h3>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-white/55">
+                  Search GitHub and attach a repo card to your post.
+                </p>
+              </div>
               <button
                 onClick={() => {
                   setShowRepoModal(false);
                   setRepoSearchQuery("");
                   setRepoResults([]);
                 }}
-                className="p-1 text-gray-400 hover:text-gray-600"
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             <div className="p-4">
-              {/* Search */}
-              <div className="flex gap-2 mb-4">
-                <div className="flex-1 relative">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
                   <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white/35"
+                    size={16}
                   />
                   <input
                     type="text"
                     value={repoSearchQuery}
                     onChange={(e) => setRepoSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleSearchRepos();
-                      }
-                    }}
-                    placeholder="Search GitHub repositories..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onKeyDown={(e) => e.key === "Enter" && handleSearchRepos()}
+                    placeholder="e.g., nextjs, react-query, shadcn"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/35"
                   />
                 </div>
                 <button
                   onClick={handleSearchRepos}
                   disabled={searchingRepos || !repoSearchQuery.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
                   {searchingRepos ? <LoadingSpinner size="sm" /> : "Search"}
                 </button>
               </div>
 
-              {/* Results */}
-              <div className="max-h-[50vh] overflow-y-auto space-y-2">
+              <div className="mt-4 max-h-[55vh] space-y-2 overflow-y-auto pr-1">
                 {searchingRepos && (
-                  <div className="flex justify-center py-8">
+                  <div className="flex justify-center py-10">
                     <LoadingSpinner size="md" />
                   </div>
                 )}
 
-                {!searchingRepos &&
-                  repoResults.length === 0 &&
-                  repoSearchQuery && (
-                    <p className="text-center text-gray-500 py-8">
-                      No repositories found. Try a different search.
-                    </p>
-                  )}
-
-                {!searchingRepos &&
-                  repoResults.length === 0 &&
-                  !repoSearchQuery && (
-                    <p className="text-center text-gray-500 py-8">
-                      Search for a GitHub repository to share
-                    </p>
-                  )}
+                {!searchingRepos && repoResults.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-white/10 dark:text-white/55">
+                    {repoSearchQuery
+                      ? "No repositories found."
+                      : "Search to see results."}
+                  </div>
+                )}
 
                 {repoResults.map((repo) => (
                   <button
                     key={repo.id}
                     onClick={() => handleSelectRepo(repo)}
-                    className="w-full p-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors"
+                    className="w-full rounded-xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.02] dark:hover:bg-white/[0.06]"
                   >
-                    <div className="flex items-center gap-2 font-medium text-gray-900">
-                      <Github size={16} />
-                      {repo.full_name}
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Github
+                        size={16}
+                        className="text-gray-500 dark:text-white/60"
+                      />
+                      <span className="truncate">{repo.full_name}</span>
                     </div>
                     {repo.description && (
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-white/60">
                         {repo.description}
                       </p>
                     )}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-white/55">
                       {repo.language && (
-                        <span className="flex items-center gap-1">
-                          <Code size={12} />
-                          {repo.language}
+                        <span className="inline-flex items-center gap-1">
+                          <Code size={12} /> {repo.language}
                         </span>
                       )}
-                      <span className="flex items-center gap-1">
-                        <Star size={12} />
-                        {repo.stargazers_count}
+                      <span className="inline-flex items-center gap-1">
+                        <Star size={12} /> {repo.stargazers_count}
                       </span>
                     </div>
                   </button>
@@ -591,80 +781,31 @@ const Feed = () => {
         </div>
       )}
 
-      {/* Login prompt for anonymous users */}
-      {!isAuthenticated && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <p className="text-blue-800">
-            <Link
-              href="/login?redirect=/feed"
-              className="font-medium hover:underline"
-            >
-              Login
-            </Link>{" "}
-            or{" "}
-            <Link href="/register" className="font-medium hover:underline">
-              register
-            </Link>{" "}
-            to create posts and interact with the community.
-          </p>
-        </div>
-      )}
-
-      {/* Loading State */}
-      {loading && (
-        <div className="flex justify-center py-12">
-          <LoadingSpinner size="lg" />
-        </div>
-      )}
-
-      {/* Posts */}
-      {!loading && (
-        <div className="space-y-4">
-          {posts.map((post) => (
-            <PostCard
-              key={post._id}
-              post={post}
-              currentUserId={user?.id}
-              onLike={handleLike}
-              onDelete={handleDeletePost}
-              onCommentAdded={handleCommentAdded}
-            />
-          ))}
-
-          {/* Load more trigger */}
-          <div ref={loadMoreRef} className="h-10" />
-
-          {/* Loading more indicator */}
-          {loadingMore && (
-            <div className="flex justify-center py-4">
-              <LoadingSpinner size="md" />
+      {/* Job modal placeholder (kept) */}
+      {showJobModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#0f1620]">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-white/10">
+              <h3 className="text-base font-semibold">Select a job</h3>
+              <button
+                onClick={() => setShowJobModal(false)}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-white/[0.06] dark:hover:text-white"
+              >
+                <X size={18} />
+              </button>
             </div>
-          )}
-
-          {/* No more posts */}
-          {!hasMore && posts.length > 0 && (
-            <p className="text-center text-gray-500 py-4">
-              You've reached the end of the feed
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && posts.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <MessageCircle className="mx-auto text-gray-300 mb-4" size={64} />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            No posts yet
-          </h3>
-          <p className="text-gray-500">Be the first to share something!</p>
+            <div className="p-6 text-sm text-gray-600 dark:text-white/60">
+              Hook this modal to your jobs list. For now, it’s a UI shell.
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 };
 
-// Post Card Component
+/* -------------------------------- Post Card -------------------------------- */
+
 interface PostCardProps {
   post: Post;
   currentUserId?: string;
@@ -686,6 +827,7 @@ const PostCard = ({
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+
   const { error } = useToast();
   const { isAuthenticated } = useAuth();
   const router = useRouter();
@@ -693,19 +835,15 @@ const PostCard = ({
 
   const isAuthor = currentUserId === post.author._id;
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node))
         setShowMenu(false);
-      }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Format date
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -714,19 +852,15 @@ const PostCard = ({
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
     return date.toLocaleDateString();
   };
 
-  // Load comments
   const loadComments = async () => {
-    if (showComments) {
-      setShowComments(false);
-      return;
-    }
+    if (showComments) return setShowComments(false);
 
     setShowComments(true);
     setLoadingComments(true);
@@ -745,13 +879,11 @@ const PostCard = ({
     }
   };
 
-  // Post comment
   const handlePostComment = async () => {
     if (!isAuthenticated) {
       router.push(`/login?redirect=${encodeURIComponent("/feed")}`);
       return;
     }
-
     if (!newComment.trim()) return;
 
     setPostingComment(true);
@@ -768,7 +900,6 @@ const PostCard = ({
     }
   };
 
-  // Handle like click
   const handleLikeClick = () => {
     if (!isAuthenticated) {
       router.push(`/login?redirect=${encodeURIComponent("/feed")}`);
@@ -777,306 +908,361 @@ const PostCard = ({
     onLike(post._id);
   };
 
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      {/* Header */}
-      <div className="p-4 flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <Link href={`/profile/${post.author.username}`}>
-            {post.author.avatar ? (
-              <img
-                src={post.author.avatar}
-                alt={post.author.username}
-                className="w-10 h-10 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                {post.author.username.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </Link>
-          <div>
-            <Link
-              href={`/profile/${post.author.username}`}
-              className="font-semibold text-gray-900 hover:text-blue-600"
-            >
-              @{post.author.username}
-            </Link>
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>{formatDate(post.createdAt)}</span>
-              {post.type !== "TEXT" && (
-                <>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    {post.type === "SHARE_REPO" && (
-                      <>
-                        <Github size={12} />
-                        Shared a repo
-                      </>
-                    )}
-                    {post.type === "SHARE_JOB" && (
-                      <>
-                        <Briefcase size={12} />
-                        Shared a job
-                      </>
-                    )}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+  // Reddit-ish vote rail: we map your like to a single “upvote” action visually.
+  const score = post.likesCount;
 
-        {/* Menu */}
-        <div className="relative" ref={menuRef}>
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-colors hover:bg-gray-50/40 dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.05]">
+      <div className="flex">
+        {/* Vote rail */}
+        <div className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-100 bg-gray-50 py-3 dark:border-white/10 dark:bg-white/[0.02]">
           <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            onClick={handleLikeClick}
+            className={[
+              "rounded-lg p-1 transition-colors",
+              post.isLiked
+                ? "text-rose-600 dark:text-rose-400"
+                : "text-gray-400 hover:bg-white hover:text-gray-600 dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white/70",
+            ].join(" ")}
+            title="Upvote"
           >
-            <MoreHorizontal size={18} className="text-gray-500" />
+            <Heart size={18} fill={post.isLiked ? "currentColor" : "none"} />
           </button>
 
-          {showMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-              <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50">
-                <Bookmark size={14} />
-                Save Post
-              </button>
-              {isAuthor && (
-                <>
-                  <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50">
-                    <Edit size={14} />
-                    Edit Post
-                  </button>
-                  <button
-                    onClick={() => {
-                      onDelete(post._id);
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 text-red-600"
-                  >
-                    <Trash2 size={14} />
-                    Delete Post
-                  </button>
-                </>
-              )}
-              {!isAuthor && (
-                <button className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 text-red-600">
-                  <Flag size={14} />
-                  Report
-                </button>
-              )}
-            </div>
-          )}
+          <div className="text-xs font-bold text-gray-700 dark:text-white/80">
+            {score}
+          </div>
+
+          <div className="h-6 w-px bg-gray-200 dark:bg-white/10" />
+
+          <button
+            onClick={loadComments}
+            className="rounded-lg p-1 text-gray-400 hover:bg-white hover:text-gray-600 dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white/70"
+            title="Comments"
+          >
+            <MessageCircle size={18} />
+          </button>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="px-4 pb-3">
-        <p className="text-gray-900 whitespace-pre-wrap">{post.content}</p>
-      </div>
-
-      {/* Shared Repo */}
-      {post.type === "SHARE_REPO" && post.repo && (
-        <div className="mx-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <a
-                href={post.repo.htmlUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+        {/* Main content */}
+        <div className="min-w-0 flex-1">
+          {/* Meta header */}
+          <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Link
+                href={`/profile/${post.author.username}`}
+                className="shrink-0"
               >
-                <Github size={16} />
-                {post.repo.fullName}
-                <ExternalLink size={12} />
-              </a>
-              {post.repo.description && (
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                  {post.repo.description}
-                </p>
-              )}
-              <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                {post.repo.language && (
-                  <span className="flex items-center gap-1">
-                    <Code size={12} />
-                    {post.repo.language}
-                  </span>
+                {post.author.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.author.avatar}
+                    alt={post.author.username}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-xs font-bold text-white">
+                    {post.author.username.charAt(0).toUpperCase()}
+                  </div>
                 )}
-                <span className="flex items-center gap-1">
-                  <Star size={12} />
-                  {post.repo.stars}
-                </span>
+              </Link>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-white/55">
+                  <Link
+                    href={`/profile/${post.author.username}`}
+                    className="font-semibold text-gray-900 hover:underline dark:text-white"
+                  >
+                    @{post.author.username}
+                  </Link>
+                  <span>•</span>
+                  <span>{formatDate(post.createdAt)}</span>
+
+                  {post.type !== "TEXT" && (
+                    <>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1">
+                        {post.type === "SHARE_REPO" ? (
+                          <>
+                            <Github size={12} /> repo
+                          </>
+                        ) : (
+                          <>
+                            <Briefcase size={12} /> job
+                          </>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Shared Job */}
-      {post.type === "SHARE_JOB" && post.jobPost && (
-        <div className="mx-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <Link
-            href={`/jobs/${post.jobPost._id}`}
-            className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
-          >
-            <Briefcase size={16} />
-            {post.jobPost.title}
-          </Link>
-          <p className="text-sm text-gray-600 mt-1">
-            {post.jobPost.companyName}
-          </p>
-          <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
-            <span>{post.jobPost.workType}</span>
-            {post.jobPost.location?.city && (
-              <>
-                <span>•</span>
-                <span>{post.jobPost.location.city}</span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+            {/* Menu */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setShowMenu((v) => !v)}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-white/35 dark:hover:bg-white/[0.06] dark:hover:text-white"
+              >
+                <MoreHorizontal size={18} />
+              </button>
 
-      {/* Engagement Stats */}
-      {(post.likesCount > 0 || post.commentsCount > 0) && (
-        <div className="px-4 py-2 border-t border-gray-100 flex items-center gap-4 text-sm text-gray-500">
-          {post.likesCount > 0 && (
-            <span className="flex items-center gap-1">
-              <Heart size={14} className="text-red-500" fill="currentColor" />
-              {post.likesCount}
-            </span>
-          )}
-          {post.commentsCount > 0 && (
-            <button onClick={loadComments} className="hover:underline">
-              {post.commentsCount} comment{post.commentsCount !== 1 ? "s" : ""}
-            </button>
-          )}
-        </div>
-      )}
+              {showMenu && (
+                <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-white/10 dark:bg-[#0f1620]">
+                  <button className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/[0.06]">
+                    <Bookmark size={14} />
+                    Save
+                  </button>
 
-      {/* Actions */}
-      <div className="px-4 py-2 border-t border-gray-100 flex items-center gap-2">
-        <button
-          onClick={handleLikeClick}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-colors ${
-            post.isLiked
-              ? "text-red-500 bg-red-50 hover:bg-red-100"
-              : "text-gray-500 hover:bg-gray-100"
-          }`}
-        >
-          <Heart size={18} fill={post.isLiked ? "currentColor" : "none"} />
-          Like
-        </button>
-        <button
-          onClick={loadComments}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg transition-colors ${
-            showComments
-              ? "text-blue-500 bg-blue-50"
-              : "text-gray-500 hover:bg-gray-100"
-          }`}
-        >
-          <MessageCircle size={18} />
-          Comment
-        </button>
-        <button className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-gray-500 hover:bg-gray-100">
-          <Share2 size={18} />
-          Share
-        </button>
-      </div>
-
-      {/* Comments Section */}
-      {showComments && (
-        <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
-          {/* Loading */}
-          {loadingComments && (
-            <div className="flex justify-center py-4">
-              <LoadingSpinner size="sm" />
+                  {isAuthor ? (
+                    <>
+                      <button className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/[0.06]">
+                        <Edit size={14} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          onDelete(post._id);
+                          setShowMenu(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-rose-600 hover:bg-gray-50 dark:text-rose-400 dark:hover:bg-white/[0.06]"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </>
+                  ) : (
+                    <button className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-rose-600 hover:bg-gray-50 dark:text-rose-400 dark:hover:bg-white/[0.06]">
+                      <Flag size={14} />
+                      Report
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Comments List */}
-          {!loadingComments && comments.length > 0 && (
-            <div className="space-y-3 mb-4">
-              {comments.map((comment) => (
-                <div key={comment._id} className="flex gap-2">
-                  <Link href={`/profile/${comment.author.username}`}>
-                    {comment.author.avatar ? (
-                      <img
-                        src={comment.author.avatar}
-                        alt={comment.author.username}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
-                        {comment.author.username.charAt(0).toUpperCase()}
-                      </div>
+          {/* Body */}
+          <div className="px-4 pb-3">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-900 dark:text-white">
+              {post.content}
+            </p>
+          </div>
+
+          {/* Attachments */}
+          {post.type === "SHARE_REPO" && post.repo && (
+            <div className="mx-4 mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <a
+                    href={post.repo.htmlUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300"
+                  >
+                    <Github size={16} />
+                    <span className="truncate">{post.repo.fullName}</span>
+                    <ExternalLink size={14} />
+                  </a>
+
+                  {post.repo.description && (
+                    <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-white/60">
+                      {post.repo.description}
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-white/55">
+                    {post.repo.language && (
+                      <span className="inline-flex items-center gap-1">
+                        <Code size={12} /> {post.repo.language}
+                      </span>
                     )}
-                  </Link>
-                  <div className="flex-1 bg-white rounded-lg px-3 py-2">
-                    <Link
-                      href={`/profile/${comment.author.username}`}
-                      className="font-medium text-sm text-gray-900 hover:text-blue-600"
-                    >
-                      @{comment.author.username}
-                    </Link>
-                    <p className="text-sm text-gray-700">{comment.content}</p>
-                    <span className="text-xs text-gray-400">
-                      {formatDate(comment.createdAt)}
+                    <span className="inline-flex items-center gap-1">
+                      <Star size={12} /> {post.repo.stars}
                     </span>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
           )}
 
-          {/* No comments */}
-          {!loadingComments && comments.length === 0 && (
-            <p className="text-center text-sm text-gray-500 py-2">
-              No comments yet. Be the first to comment!
-            </p>
+          {post.type === "SHARE_JOB" && post.jobPost && (
+            <div className="mx-4 mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+              <Link
+                href={`/jobs/${post.jobPost._id}`}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300"
+              >
+                <Briefcase size={16} />
+                <span className="truncate">{post.jobPost.title}</span>
+              </Link>
+              <p className="mt-1 text-xs text-gray-600 dark:text-white/60">
+                {post.jobPost.companyName}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-white/55">
+                <span>{post.jobPost.workType}</span>
+                {post.jobPost.location?.city && (
+                  <>
+                    <span>•</span>
+                    <span>{post.jobPost.location.city}</span>
+                  </>
+                )}
+              </div>
+            </div>
           )}
 
-          {/* Add Comment */}
-          {isAuthenticated ? (
-            <div className="flex gap-2 mt-3">
-              <input
-                type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Write a comment..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                onKeyPress={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handlePostComment();
-                  }
-                }}
-              />
+          {/* Action bar */}
+          <div className="flex items-center justify-between border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-white/10 dark:text-white/55">
+            <div className="flex items-center gap-2">
               <button
-                onClick={handlePostComment}
-                disabled={postingComment || !newComment.trim()}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                onClick={handleLikeClick}
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 font-semibold transition-colors",
+                  post.isLiked
+                    ? "bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300"
+                    : "hover:bg-gray-100 dark:hover:bg-white/[0.06]",
+                ].join(" ")}
               >
-                {postingComment ? (
-                  <LoadingSpinner size="sm" />
-                ) : (
-                  <Send size={16} />
-                )}
+                <Heart
+                  size={16}
+                  fill={post.isLiked ? "currentColor" : "none"}
+                />
+                Like
+              </button>
+
+              <button
+                onClick={loadComments}
+                className={[
+                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 font-semibold transition-colors",
+                  showComments
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-200"
+                    : "hover:bg-gray-100 dark:hover:bg-white/[0.06]",
+                ].join(" ")}
+              >
+                <MessageCircle size={16} />
+                Comment
+              </button>
+
+              <button className="inline-flex items-center gap-2 rounded-xl px-3 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-white/[0.06]">
+                <Share2 size={16} />
+                Share
               </button>
             </div>
-          ) : (
-            <button
-              onClick={() =>
-                router.push(`/login?redirect=${encodeURIComponent("/feed")}`)
-              }
-              className="w-full mt-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-            >
-              Login to comment
-            </button>
+
+            <div className="flex items-center gap-3">
+              {post.commentsCount > 0 && (
+                <button onClick={loadComments} className="hover:underline">
+                  {post.commentsCount} comment
+                  {post.commentsCount !== 1 ? "s" : ""}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Comments */}
+          {showComments && (
+            <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 dark:border-white/10 dark:bg-white/[0.02]">
+              {loadingComments && (
+                <div className="flex justify-center py-4">
+                  <LoadingSpinner size="sm" />
+                </div>
+              )}
+
+              {!loadingComments && comments.length > 0 && (
+                <div className="space-y-3">
+                  {comments.map((comment) => (
+                    <div key={comment._id} className="flex gap-2">
+                      <Link
+                        href={`/profile/${comment.author.username}`}
+                        className="shrink-0"
+                      >
+                        {comment.author.avatar ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={comment.author.avatar}
+                            alt={comment.author.username}
+                            className="h-7 w-7 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-[10px] font-bold text-white">
+                            {comment.author.username.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </Link>
+
+                      <div className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`/profile/${comment.author.username}`}
+                            className="truncate text-xs font-semibold text-gray-900 hover:underline dark:text-white"
+                          >
+                            @{comment.author.username}
+                          </Link>
+                          <span className="shrink-0 text-[11px] text-gray-400 dark:text-white/40">
+                            {formatDate(comment.createdAt)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-700 dark:text-white/75">
+                          {comment.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!loadingComments && comments.length === 0 && (
+                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500 dark:border-white/10 dark:text-white/55">
+                  No comments yet.
+                </div>
+              )}
+
+              {/* Add comment */}
+              <div className="mt-3 flex gap-2">
+                {isAuthenticated ? (
+                  <>
+                    <input
+                      type="text"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Add a comment…"
+                      className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-white/10 dark:bg-white/[0.03] dark:text-white dark:placeholder:text-white/35"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handlePostComment();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handlePostComment}
+                      disabled={postingComment || !newComment.trim()}
+                      className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+                      title="Send"
+                    >
+                      {postingComment ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <Send size={16} />
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() =>
+                      router.push(
+                        `/login?redirect=${encodeURIComponent("/feed")}`
+                      )
+                    }
+                    className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
+                  >
+                    Log in to comment
+                  </button>
+                )}
+              </div>
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

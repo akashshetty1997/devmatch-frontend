@@ -41,7 +41,12 @@ export const jobService = {
     preferredSkills?: string[];
     minYearsExperience?: number;
     maxYearsExperience?: number;
-    salary?: { min?: number; max?: number; currency?: string; isVisible?: boolean };
+    salary?: {
+      min?: number;
+      max?: number;
+      currency?: string;
+      isVisible?: boolean;
+    };
     employmentType?: string;
     applicationDeadline?: string;
     externalApplicationUrl?: string;
@@ -59,19 +64,19 @@ export const jobService = {
     return api.delete(`/jobs/${id}`);
   },
 
-  // Get my jobs (Recruiter)
+  // Get my jobs (Recruiter) - Fixed endpoint
   getMyJobs: (params?: { page?: number; limit?: number }) => {
-    return api.get("/jobs/my-jobs", { params });
+    return api.get("/jobs/me", { params });
   },
 
-  // Activate job
+  // Activate job - Fixed endpoint to match backend
   activateJob: (id: string) => {
-    return api.patch(`/jobs/${id}/activate`);
+    return api.patch(`/jobs/${id}/status`, { isActive: true });
   },
 
-  // Deactivate job
+  // Deactivate job - Fixed endpoint to match backend
   deactivateJob: (id: string) => {
-    return api.patch(`/jobs/${id}/deactivate`);
+    return api.patch(`/jobs/${id}/status`, { isActive: false });
   },
 
   // Toggle featured (Admin)

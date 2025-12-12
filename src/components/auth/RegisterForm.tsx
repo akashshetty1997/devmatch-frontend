@@ -68,7 +68,9 @@ export default function RegisterForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
+  const [showPasswordRequirements, setShowPasswordRequirements] =
+    useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Check password requirements
   const passwordChecks = useMemo(() => {
@@ -97,11 +99,17 @@ export default function RegisterForm() {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
+    if (submitError) {
+      setSubmitError(null);
+    }
   };
 
   const handleRoleChange = (role: Role) => {
     setFormData((prev) => ({ ...prev, role, companyName: "" }));
     setErrors((prev) => ({ ...prev, companyName: "" }));
+    if (submitError) {
+      setSubmitError(null);
+    }
   };
 
   const validate = (): boolean => {
@@ -153,6 +161,8 @@ export default function RegisterForm() {
     if (!validate()) return;
 
     setIsLoading(true);
+    setSubmitError(null);
+
     try {
       await register({
         username: formData.username.toLowerCase(),
@@ -163,12 +173,28 @@ export default function RegisterForm() {
           companyName: formData.companyName,
         }),
       });
+
       toast.success("Account created successfully!");
-      router.push("/");
+      router.push("/welcome");
     } catch (error: any) {
-      const message =
-        error.response?.data?.message ||
-        "Registration failed. Please try again.";
+      console.log("=== REGISTER FORM CATCH START ===");
+      console.log("RAW ERROR:", error);
+      console.log("ERROR TYPE:", typeof error);
+      console.log("error.message:", error?.message);
+      console.log("error.response:", error?.response);
+      console.log("error.response?.data:", error?.response?.data);
+      console.log("=== REGISTER FORM CATCH END ===");
+
+      let message = "Registration failed. Please try again.";
+
+      if (error?.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error?.message) {
+        message = error.message;
+      }
+
+      console.log("Final error message to UI:", message);
+      setSubmitError(message);
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -273,7 +299,6 @@ export default function RegisterForm() {
             onChange={handleChange}
             onFocus={() => setShowPasswordRequirements(true)}
             onBlur={() => {
-              // Keep showing if password is not empty and requirements not met
               if (formData.password && allPasswordRequirementsMet) {
                 setShowPasswordRequirements(false);
               }
@@ -364,6 +389,10 @@ export default function RegisterForm() {
         >
           Create Account
         </Button>
+
+        {submitError && (
+          <p className="mt-3 text-sm text-red-600">{submitError}</p>
+        )}
 
         {/* Login Link */}
         <p className="text-center text-gray-600 mt-6">

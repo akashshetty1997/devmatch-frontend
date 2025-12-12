@@ -1,0 +1,144 @@
+Folder PATH listing for volume Data
+Volume serial number is EC67-EA73
+D:.
+|   index.css
+|   structure-src.txt
+|   
++---app
+|       globals.css
+|       
++---components
+|   +---admin
+|   |       index.ts
+|   |       
+|   +---auth
+|   |       index.ts
+|   |       LoginForm.tsx
+|   |       ProtectedRoute.tsx
+|   |       RegisterForm.tsx
+|   |       RoleRoute.tsx
+|   |       
+|   +---common
+|   |       Avatar.tsx
+|   |       Badge.tsx
+|   |       Button.tsx
+|   |       Card.tsx
+|   |       ErrorState.tsx
+|   |       Footer.tsx
+|   |       index.ts
+|   |       Input.tsx
+|   |       Loading.tsx
+|   |       Navbar.tsx
+|   |       
+|   +---details
+|   |       DetailsContainer.tsx
+|   |       index.ts
+|   |       RepoComments.tsx
+|   |       RepoHeader.tsx
+|   |       RepoReadme.tsx
+|   |       RepoReviews.tsx
+|   |       RepoSidebar.tsx
+|   |       RepoStats.tsx
+|   |       
+|   +---home
+|   +---jobs
+|   |       JobDetailsContainer.tsx
+|   |       JobForm.tsx
+|   |       JobsContainer.tsx
+|   |       JobsFilters.tsx
+|   |       JobsHeader.tsx
+|   |       JobsList.tsx
+|   |       
+|   +---profile
+|   |       DeveloperProfile.tsx
+|   |       EditProfileModal.tsx
+|   |       FollowList.tsx
+|   |       index.ts
+|   |       ProfileContainer.tsx
+|   |       ProfileHeader.tsx
+|   |       ProfileTabs.tsx
+|   |       RecruiterProfile.tsx
+|   |       
+|   \---search
+|           index.ts
+|           SearchContainer.tsx
+|           SearchFilters.tsx
+|           SearchHeader.tsx
+|           SearchResults.tsx
+|           
++---contexts
+|       AuthContext.tsx
+|       ErrorContext.tsx
+|       ToastContext.tsx
+|       
++---hooks
+|       index.ts
+|       useAuth.ts
+|       useDebounce.ts
+|       useLocalStorage.ts
+|       
++---lib
+|       api.ts
+|       utils.ts
+|       
++---pages
+|   |   404.tsx
+|   |   applications.tsx
+|   |   developers.tsx
+|   |   feed.tsx
+|   |   index.tsx
+|   |   login.tsx
+|   |   my-applications.tsx
+|   |   my-jobs.tsx
+|   |   register.tsx
+|   |   search.tsx
+|   |   settings.tsx
+|   |   _app.tsx
+|   |   
+|   +---admin
+|   |       AdminDashboard.tsx
+|   |       AdminSkills.tsx
+|   |       AdminUsers.tsx
+|   |       index.ts
+|   |       
+|   +---details
+|   |       [...slug].tsx
+|   |       
+|   +---jobs
+|   |       index.tsx
+|   |       
+|   \---profile
+|           index.tsx
+|           [username].tsx
+|           
++---providers
+|       ApiProvider.tsx
+|       
++---services
+|       adminService.ts
+|       api.ts
+|       applicationService.ts
+|       authService.ts
+|       developerService.ts
+|       githubService.ts
+|       index.ts
+|       jobService.ts
+|       postService.ts
+|       skillService.ts
+|       userService.ts
+|       
++---store
+|       authStore.ts
+|       uiStore.ts
+|       
++---styles
+|       globals.css
+|       
++---types
+|       index.ts
+|       
+\---utils
+        formatters.ts
+        index.ts
+        validators.ts
+        

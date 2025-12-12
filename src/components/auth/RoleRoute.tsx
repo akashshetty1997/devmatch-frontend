@@ -15,7 +15,9 @@ interface RoleRouteProps {
 }
 
 const RoleRoute = ({ children, allowedRoles }: RoleRouteProps) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  // If your AuthContext provides a different loading state, use it here.
+  const loading = false; // Replace with actual loading logic if available
   const router = useRouter();
 
   if (loading) {

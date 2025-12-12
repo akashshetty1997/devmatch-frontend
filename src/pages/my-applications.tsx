@@ -3,7 +3,7 @@
  * @description Developer's view of their job applications
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -83,37 +83,56 @@ export default function MyApplications() {
   const [totalCount, setTotalCount] = useState(0);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
 
+  // Use ref to prevent duplicate fetches
+  const hasFetched = useRef(false);
+  const lastFetchKey = useRef("");
+
   // Get query params from Next.js router
   const { page, status } = router.query;
   const currentPage = parseInt((page as string) || "1", 10);
   const statusFilter = (status as string) || "";
   const limit = 10;
 
-  const fetchApplications = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params: ApplicationParams = { page: currentPage, limit };
-      if (statusFilter) params.status = statusFilter;
-
-      const response = await applicationService.getMyApplications(params);
-      setApplications(response.data?.applications || []);
-      setTotalCount(response.data?.pagination?.total || 0);
-    } catch (err) {
-      showError("Failed to load applications");
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, statusFilter, limit, showError]);
-
+  // Fetch applications
   useEffect(() => {
-    if (router.isReady) {
-      fetchApplications();
+    if (!router.isReady) return;
+
+    const fetchKey = `${currentPage}-${statusFilter}`;
+
+    // Prevent duplicate fetches for same params
+    if (lastFetchKey.current === fetchKey && hasFetched.current) {
+      return;
     }
-  }, [router.isReady, fetchApplications]);
+
+    const fetchApplications = async () => {
+      setLoading(true);
+      lastFetchKey.current = fetchKey;
+      hasFetched.current = true;
+
+      try {
+        const params: ApplicationParams = { page: currentPage, limit };
+        if (statusFilter) params.status = statusFilter;
+
+        const response = await applicationService.getMyApplications(params);
+        const data = response.data?.data || response.data;
+        setApplications(data?.applications || []);
+        setTotalCount(data?.pagination?.total || 0);
+      } catch (err) {
+        showError("Failed to load applications");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplications();
+  }, [router.isReady, currentPage, statusFilter]);
 
   const updateFilters = (updates: Record<string, string | null>) => {
-    const newQuery: Record<string, string> = { ...router.query } as Record<string, string>;
-    
+    const newQuery: Record<string, string> = { ...router.query } as Record<
+      string,
+      string
+    >;
+
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === "") {
         delete newQuery[key];
@@ -126,7 +145,9 @@ export default function MyApplications() {
       newQuery.page = "1";
     }
 
-    router.push({ pathname: "/my-applications", query: newQuery }, undefined, { shallow: true });
+    router.push({ pathname: "/my-applications", query: newQuery }, undefined, {
+      shallow: true,
+    });
   };
 
   const handlePageChange = (newPage: number) => {
@@ -134,7 +155,8 @@ export default function MyApplications() {
   };
 
   const handleWithdraw = async (applicationId: string) => {
-    if (!window.confirm("Are you sure you want to withdraw this application?")) return;
+    if (!window.confirm("Are you sure you want to withdraw this application?"))
+      return;
 
     setWithdrawing(applicationId);
     try {
@@ -266,7 +288,9 @@ export default function MyApplications() {
                         {application.updatedAt !== application.appliedAt && (
                           <span>
                             Updated:{" "}
-                            {new Date(application.updatedAt).toLocaleDateString()}
+                            {new Date(
+                              application.updatedAt
+                            ).toLocaleDateString()}
                           </span>
                         )}
                       </div>
@@ -334,11 +358,11 @@ export default function MyApplications() {
             >
               <ChevronLeft size={20} />
             </button>
-            
+
             <span className="px-4 py-2 text-gray-600">
               Page {currentPage} of {totalPages}
             </span>
-            
+
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}

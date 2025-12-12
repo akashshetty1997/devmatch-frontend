@@ -18,7 +18,8 @@ export default function App({ Component, pageProps }: AppProps) {
       <AuthProvider>
         <ToastProvider>
           <ApiProvider>
-            <div className="min-h-screen flex flex-col">
+            {/* Global theme container (matches Home) */}
+            <div className="min-h-screen flex flex-col bg-[#070A12] text-white">
               <Navbar />
               <main className="flex-1">
                 <Component {...pageProps} />

@@ -3,10 +3,10 @@
  * @description Search results list
  */
 
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { motion } from 'framer-motion';
+import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   FiStar,
   FiGitBranch,
@@ -15,10 +15,16 @@ import {
   FiCode,
   FiSearch,
   FiAlertCircle,
-} from 'react-icons/fi';
-import { Card, CardBody, Badge, CardSkeleton, Button } from '@/components/common';
-import { formatNumber, formatRelativeTime } from '@/lib/utils';
-import { SearchResult } from './SearchContainer';
+} from "react-icons/fi";
+import {
+  Card,
+  CardBody,
+  Badge,
+  CardSkeleton,
+  Button,
+} from "@/components/common";
+import { formatNumber, formatRelativeTime } from "@/lib/utils";
+import { SearchResult } from "./SearchContainer";
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -30,22 +36,33 @@ interface SearchResultsProps {
 }
 
 const languageColors: Record<string, string> = {
-  JavaScript: 'bg-yellow-400',
-  TypeScript: 'bg-blue-500',
-  Python: 'bg-green-500',
-  Java: 'bg-red-500',
-  Go: 'bg-cyan-400',
-  Rust: 'bg-orange-500',
-  'C++': 'bg-pink-500',
-  'C#': 'bg-purple-500',
-  Ruby: 'bg-red-600',
-  PHP: 'bg-indigo-400',
-  Swift: 'bg-orange-400',
-  Kotlin: 'bg-purple-400',
-  HTML: 'bg-orange-600',
-  CSS: 'bg-blue-400',
-  Shell: 'bg-green-400',
+  JavaScript: "bg-yellow-400",
+  TypeScript: "bg-blue-500",
+  Python: "bg-green-500",
+  Java: "bg-red-500",
+  Go: "bg-cyan-400",
+  Rust: "bg-orange-500",
+  "C++": "bg-pink-500",
+  "C#": "bg-purple-500",
+  Ruby: "bg-red-600",
+  PHP: "bg-indigo-400",
+  Swift: "bg-orange-400",
+  Kotlin: "bg-purple-400",
+  HTML: "bg-orange-600",
+  CSS: "bg-blue-400",
+  Shell: "bg-green-400",
 };
+
+// Helper to get license name
+function getLicenseName(license: unknown): string {
+  if (!license) return "";
+  if (typeof license === "string") return license;
+  if (typeof license === "object" && license !== null) {
+    const lic = license as { name?: string; spdx_id?: string };
+    return lic.name || lic.spdx_id || "";
+  }
+  return "";
+}
 
 export default function SearchResults({
   results,
@@ -66,15 +83,22 @@ export default function SearchResults({
           Search GitHub Repositories
         </h3>
         <p className="text-gray-500 max-w-md mx-auto">
-          Enter a search term to discover amazing open source projects. 
-          You can search by name, description, topics, and more.
+          Enter a search term to discover amazing open source projects. You can
+          search by name, description, topics, and more.
         </p>
 
         {/* Popular Searches */}
         <div className="mt-8">
           <p className="text-sm text-gray-500 mb-3">Popular searches:</p>
           <div className="flex flex-wrap justify-center gap-2">
-            {['react', 'machine learning', 'typescript', 'nextjs', 'api', 'docker'].map((term) => (
+            {[
+              "react",
+              "machine learning",
+              "typescript",
+              "nextjs",
+              "api",
+              "docker",
+            ].map((term) => (
               <Link
                 key={term}
                 href={`/search?q=${encodeURIComponent(term)}`}
@@ -97,7 +121,9 @@ export default function SearchResults({
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <FiAlertCircle className="w-8 h-8 text-red-500" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Search Error</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            Search Error
+          </h3>
           <p className="text-gray-500 mb-4">{error}</p>
           <Button variant="outline" onClick={() => window.location.reload()}>
             Try Again
@@ -126,9 +152,12 @@ export default function SearchResults({
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <FiCode className="w-8 h-8 text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Results Found</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            No Results Found
+          </h3>
           <p className="text-gray-500">
-            No repositories found for &quot;{query}&quot;. Try different keywords or filters.
+            No repositories found for &quot;{query}&quot;. Try different
+            keywords or filters.
           </p>
         </CardBody>
       </Card>
@@ -175,6 +204,8 @@ export default function SearchResults({
 
 // Repository Card
 function RepoCard({ repo }: { repo: SearchResult }) {
+  const licenseName = getLicenseName(repo.license);
+
   return (
     <Card hover>
       <CardBody>
@@ -189,6 +220,7 @@ function RepoCard({ repo }: { repo: SearchResult }) {
               >
                 {repo.fullName || repo.name}
               </Link>
+
               <a
                 href={repo.htmlUrl}
                 target="_blank"
@@ -202,7 +234,7 @@ function RepoCard({ repo }: { repo: SearchResult }) {
 
             {/* Description */}
             <p className="text-gray-600 mb-3 line-clamp-2">
-              {repo.description || 'No description provided'}
+              {repo.description || "No description provided"}
             </p>
 
             {/* Topics */}
@@ -214,7 +246,11 @@ function RepoCard({ repo }: { repo: SearchResult }) {
                     href={`/search?q=${encodeURIComponent(topic)}`}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <Badge variant="primary" size="sm" className="hover:bg-blue-200">
+                    <Badge
+                      variant="primary"
+                      size="sm"
+                      className="hover:bg-blue-200"
+                    >
                       {topic}
                     </Badge>
                   </Link>
@@ -233,7 +269,7 @@ function RepoCard({ repo }: { repo: SearchResult }) {
                 <span className="flex items-center gap-1.5">
                   <span
                     className={`w-3 h-3 rounded-full ${
-                      languageColors[repo.language] || 'bg-gray-400'
+                      languageColors[repo.language] || "bg-gray-400"
                     }`}
                   />
                   {repo.language}
@@ -251,8 +287,8 @@ function RepoCard({ repo }: { repo: SearchResult }) {
                 <FiEye className="w-4 h-4" />
                 {formatNumber(repo.watchers)}
               </span>
-              {repo.license && (
-                <span className="text-gray-400">{repo.license}</span>
+              {licenseName && (
+                <span className="text-gray-400">{licenseName}</span>
               )}
               <span className="text-gray-400">
                 Updated {formatRelativeTime(repo.updatedAt)}

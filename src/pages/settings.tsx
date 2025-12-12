@@ -1,5 +1,5 @@
 /**
- * @file src/pages/Settings.tsx
+ * @file src/pages/settings.tsx
  * @description User account settings page
  * - Change password
  * - Update email
@@ -33,7 +33,7 @@ import {
 type SettingsTab = "account" | "security" | "privacy";
 
 const Settings = () => {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout } = useAuth();
   const { success, error } = useToast();
   const router = useRouter();
 
@@ -146,9 +146,11 @@ const Settings = () => {
     setEmailLoading(true);
     try {
       await userService.changeEmail(emailData.newEmail, emailData.password);
-      success("Email updated successfully");
+      success("Email updated successfully. Please log in again.");
       setEmailData({ newEmail: "", password: "" });
-      refreshUser();
+      // Log out and redirect to login since email changed
+      logout();
+      router.push("/login");
     } catch (err: any) {
       error(err.response?.data?.message || "Failed to change email");
     } finally {
