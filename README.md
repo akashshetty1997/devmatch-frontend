@@ -47,8 +47,8 @@ A developer-recruiter matching platform where developers can showcase their GitH
 
 | Name | Section |
 |------|---------|
-| Akash Shetty | [Your Section Number] |
-
+| Akash Shetty |
+| Skandhan madhusudhana |
 ## Links
 
 - **Live Demo:** [https://devmatch.netlify.app](https://devmatch.netlify.app)
